@@ -1,0 +1,8 @@
+{
+    "xml.fileAssociations": [
+        {
+            "pattern": "**/*.odd",
+            "systemId": "/Users/wolfgang/.vscode/extensions/teipublisher.opm-vscode-0.1.0/schemas/teipublisher_odds.xsd"
+        }
+    ]
+}

@@ -1,0 +1,342 @@
+:root {
+  --gap: 8px;
+  --radius: 3px;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  padding: 0;
+  font-family: var(--vscode-font-family);
+  font-size: var(--vscode-font-size, 13px);
+  color: var(--vscode-foreground);
+  background: var(--vscode-editor-background);
+}
+
+button {
+  font: inherit;
+  color: var(--vscode-button-secondaryForeground, var(--vscode-foreground));
+  background: var(--vscode-button-secondaryBackground, transparent);
+  border: 1px solid var(--vscode-button-border, transparent);
+  border-radius: var(--radius);
+  padding: 2px 6px;
+  cursor: pointer;
+}
+button:hover:not(:disabled) {
+  background: var(--vscode-button-secondaryHoverBackground, var(--vscode-toolbar-hoverBackground));
+}
+button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+button.danger:hover {
+  background: var(--vscode-inputValidation-errorBackground, #a1260d);
+}
+
+input[type="text"],
+select,
+textarea {
+  font: inherit;
+  color: var(--vscode-input-foreground);
+  background: var(--vscode-input-background);
+  border: 1px solid var(--vscode-input-border, transparent);
+  border-radius: var(--radius);
+  padding: 3px 6px;
+}
+input[type="text"]:focus,
+select:focus,
+textarea:focus {
+  outline: 1px solid var(--vscode-focusBorder);
+  outline-offset: -1px;
+}
+textarea {
+  resize: vertical;
+  font-family: var(--vscode-editor-font-family, monospace);
+  width: 100%;
+}
+
+.loading,
+.empty-main {
+  padding: 16px;
+  color: var(--vscode-descriptionForeground);
+}
+
+/* ---- layout ---- */
+.layout {
+  display: flex;
+  height: 100vh;
+}
+.sidebar {
+  width: 240px;
+  min-width: 200px;
+  border-right: 1px solid var(--vscode-panel-border, rgba(128, 128, 128, 0.35));
+  display: flex;
+  flex-direction: column;
+  padding: var(--gap);
+  gap: var(--gap);
+  overflow: hidden;
+}
+.main {
+  flex: 1;
+  overflow: auto;
+  padding: var(--gap) 12px;
+}
+
+.meta .odd-title {
+  font-weight: 600;
+}
+.meta .odd-source {
+  color: var(--vscode-descriptionForeground);
+  font-size: 0.9em;
+}
+
+.add-element {
+  display: flex;
+  gap: 4px;
+}
+.add-element input {
+  flex: 1;
+}
+
+.spec-list {
+  flex: 1;
+  overflow: auto;
+  border-top: 1px solid var(--vscode-panel-border, rgba(128, 128, 128, 0.25));
+  padding-top: 4px;
+}
+.spec-item {
+  padding: 4px 6px;
+  border-radius: var(--radius);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.spec-item:hover {
+  background: var(--vscode-list-hoverBackground);
+}
+.spec-item.active {
+  background: var(--vscode-list-activeSelectionBackground);
+  color: var(--vscode-list-activeSelectionForeground);
+}
+.mode-badge,
+.tag {
+  font-size: 0.8em;
+  padding: 0 5px;
+  border-radius: 8px;
+  background: var(--vscode-badge-background);
+  color: var(--vscode-badge-foreground);
+}
+
+/* ---- spec header ---- */
+.spec-head {
+  display: flex;
+  align-items: center;
+  gap: var(--gap);
+  padding-bottom: var(--gap);
+  border-bottom: 1px solid var(--vscode-panel-border, rgba(128, 128, 128, 0.25));
+  flex-wrap: wrap;
+}
+.spec-head .ident {
+  font-size: 1.2em;
+  font-weight: 600;
+  min-width: 120px;
+}
+.spec-head .mode {
+  color: var(--vscode-descriptionForeground);
+}
+.spacer {
+  flex: 1;
+}
+.warn {
+  margin: var(--gap) 0;
+  padding: 6px 8px;
+  border-radius: var(--radius);
+  background: var(--vscode-inputValidation-warningBackground, rgba(255, 200, 0, 0.15));
+  border: 1px solid var(--vscode-inputValidation-warningBorder, rgba(255, 200, 0, 0.4));
+}
+
+/* ---- models ---- */
+.models {
+  margin-top: var(--gap);
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap);
+}
+.empty-models {
+  color: var(--vscode-descriptionForeground);
+  padding: 8px 0;
+}
+.model {
+  border: 1px solid var(--vscode-panel-border, rgba(128, 128, 128, 0.3));
+  border-radius: var(--radius);
+  background: var(--vscode-editorWidget-background, rgba(128, 128, 128, 0.05));
+}
+.model-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  cursor: pointer;
+  background: var(--vscode-sideBarSectionHeader-background, rgba(128, 128, 128, 0.12));
+  border-radius: var(--radius);
+}
+.model.open > .model-head {
+  border-bottom: 1px solid var(--vscode-panel-border, rgba(128, 128, 128, 0.3));
+  border-radius: var(--radius) var(--radius) 0 0;
+}
+.grip {
+  cursor: grab;
+  color: var(--vscode-descriptionForeground);
+  user-select: none;
+  padding: 0 2px;
+}
+.grip:active {
+  cursor: grabbing;
+}
+model-card {
+  display: block;
+}
+/* Insertion-point indicator: a line at the gap above or below the card. */
+model-card.drop-before {
+  box-shadow: 0 -2px 0 0 var(--vscode-focusBorder);
+}
+model-card.drop-after {
+  box-shadow: 0 2px 0 0 var(--vscode-focusBorder);
+}
+.twisty {
+  width: 1em;
+  color: var(--vscode-descriptionForeground);
+}
+.model-title {
+  font-weight: 600;
+}
+.model-title .beh {
+  color: var(--vscode-charts-orange, #d18616);
+  font-style: normal;
+}
+.model-head .pred {
+  color: var(--vscode-charts-orange, #d18616);
+  font-family: var(--vscode-editor-font-family, monospace);
+  font-size: 0.9em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 50%;
+}
+/* Square icon buttons using the codicon font (monochrome, theme-coloured). */
+button.icon {
+  border: none;
+  background: transparent;
+  padding: 0;
+  width: 24px;
+  height: 24px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--vscode-icon-foreground, var(--vscode-foreground));
+}
+button.icon:hover:not(:disabled) {
+  background: var(--vscode-toolbar-hoverBackground);
+}
+button.icon.danger:hover:not(:disabled) {
+  background: var(--vscode-inputValidation-errorBackground, #a1260d);
+}
+.codicon {
+  font-size: 16px;
+}
+.model-body {
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  flex: 1;
+}
+.field > span {
+  font-size: 0.85em;
+  color: var(--vscode-descriptionForeground);
+}
+.field.grow {
+  flex: 3;
+}
+/* Short, fixed-width fields so they don't stretch across the row. */
+.field.scope {
+  flex: 0 1 110px;
+}
+.field.name {
+  flex: 0 1 160px;
+}
+.field.value {
+  flex: 1;
+}
+.row {
+  display: flex;
+  gap: var(--gap);
+  align-items: flex-end;
+  flex-wrap: wrap;
+}
+.inline {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  white-space: nowrap;
+}
+
+cm-field {
+  display: block;
+}
+cm-field .cm-host {
+  min-height: 1.4em;
+}
+cm-field .cm-editor {
+  max-height: 280px;
+}
+
+.tmpl-tools {
+  margin-left: 8px;
+}
+.tmpl-tools button {
+  padding: 0 5px;
+  font-family: var(--vscode-editor-font-family, monospace);
+}
+
+.section {
+  border-top: 1px dashed var(--vscode-panel-border, rgba(128, 128, 128, 0.3));
+  padding-top: 8px;
+}
+.section-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+.param,
+.rendition {
+  align-items: flex-start;
+}
+/* Push the set/remove controls down so they line up with the inputs (which sit
+   below their field labels) rather than with the labels themselves. */
+.param > .inline,
+.param > button,
+.rendition > button {
+  margin-top: 1.35em;
+}
+.src-rend {
+  margin-left: auto;
+}
+.nested {
+  margin-top: 4px;
+}
+.nested model-card {
+  display: block;
+  margin-top: 6px;
+}

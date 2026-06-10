@@ -1,0 +1,148 @@
+{
+  "name": "oddity",
+  "displayName": "ODDity",
+  "description": "Authoring support for ODD files: an ODD-aware outline and graphical editor for TEI Processing Model output transformations.",
+  "version": "0.1.0",
+  "publisher": "teipublisher",
+  "license": "GPL-3.0-or-later",
+  "icon": "media/icon.png",
+  "engines": {
+    "vscode": "^1.84.0"
+  },
+  "categories": [
+    "Programming Languages",
+    "Other"
+  ],
+  "keywords": [
+    "TEI",
+    "ODD",
+    "XML",
+    "TEI Publisher"
+  ],
+  "main": "./dist/extension.js",
+  "extensionDependencies": [
+    "redhat.vscode-xml"
+  ],
+  "activationEvents": [
+    "onLanguage:xml",
+    "workspaceContains:**/*.odd"
+  ],
+  "contributes": {
+    "languages": [
+      {
+        "id": "xml",
+        "extensions": [
+          ".odd"
+        ]
+      }
+    ],
+    "customEditors": [
+      {
+        "viewType": "oddTools.graphicalEditor",
+        "displayName": "ODD Graphical Editor",
+        "selector": [
+          {
+            "filenamePattern": "*.odd"
+          }
+        ],
+        "priority": "option"
+      }
+    ],
+    "commands": [
+      {
+        "command": "oddTools.openGraphicalEditor",
+        "title": "Open Graphical Editor",
+        "category": "ODD",
+        "icon": "$(symbol-structure)"
+      },
+      {
+        "command": "oddTools.addElementSpec",
+        "title": "Add <elementSpec>",
+        "category": "ODD",
+        "icon": "$(add)"
+      }
+    ],
+    "menus": {
+      "editor/title": [
+        {
+          "command": "oddTools.openGraphicalEditor",
+          "when": "resourceExtname == .odd && activeCustomEditorId != oddTools.graphicalEditor",
+          "group": "navigation"
+        }
+      ],
+      "explorer/context": [
+        {
+          "command": "oddTools.openGraphicalEditor",
+          "when": "resourceExtname == .odd",
+          "group": "navigation"
+        }
+      ],
+      "editor/context": [
+        {
+          "command": "oddTools.addElementSpec",
+          "when": "resourceExtname == .odd && editorLangId == xml",
+          "group": "1_modification"
+        }
+      ],
+      "commandPalette": [
+        {
+          "command": "oddTools.openGraphicalEditor",
+          "when": "resourceExtname == .odd"
+        },
+        {
+          "command": "oddTools.addElementSpec",
+          "when": "resourceExtname == .odd && editorLangId == xml"
+        }
+      ]
+    },
+    "configuration": {
+      "title": "ODDity",
+      "properties": {
+        "oddTools.autoBindSchema": {
+          "type": "boolean",
+          "default": true,
+          "markdownDescription": "Automatically bind the bundled `teipublisher_odds.xsd` schema to `.odd` files (via `xml.fileAssociations`) when they do not already reference a resolvable schema through an `xml-model` processing instruction."
+        }
+      }
+    },
+    "configurationDefaults": {
+      "xml.symbols.filters": [
+        {
+          "pattern": "**/*.odd",
+          "expressions": [
+            {
+              "xpath": "//*",
+              "excluded": true
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run package",
+    "compile": "node esbuild.mjs",
+    "watch": "node esbuild.mjs --watch",
+    "package": "node esbuild.mjs --minify",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@xml-tools/ast": "^5.0.5",
+    "@xml-tools/parser": "^1.0.11"
+  },
+  "devDependencies": {
+    "@codemirror/commands": "^6.10.3",
+    "@codemirror/lang-css": "^6.3.1",
+    "@codemirror/lang-xml": "^6.1.0",
+    "@codemirror/language": "^6.12.3",
+    "@codemirror/legacy-modes": "^6.5.3",
+    "@codemirror/state": "^6.6.0",
+    "@codemirror/view": "^6.43.1",
+    "@types/node": "^20.11.0",
+    "@types/vscode": "^1.84.0",
+    "@vscode/codicons": "^0.0.45",
+    "esbuild": "^0.20.0",
+    "lit": "^3.3.3",
+    "typescript": "^5.4.0"
+  }
+}
