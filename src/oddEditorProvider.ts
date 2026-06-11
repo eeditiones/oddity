@@ -13,6 +13,10 @@ import {
 import { registerOddEditorPanel } from "./oddEditorPanels";
 import { showElementSpecPicker } from "./findElementSpec";
 import { ElementSpec, OddMeta, WebviewToHost } from "./oddTypes";
+import {
+  formatXmlErrors,
+  getXmlWellFormednessErrors,
+} from "./oddXmlDiagnostics";
 
 /**
  * A `CustomTextEditorProvider` that presents `.odd` files as a form-based editor
@@ -20,9 +24,10 @@ import { ElementSpec, OddMeta, WebviewToHost } from "./oddTypes";
  *
  * Registered with `priority: "option"`, so it never displaces the default text
  * editor; it is opened on demand (command / "Open With"), typically beside the
- * source. Edits are written back surgically: only the changed `<elementSpec>`
- * range is rewritten, leaving the teiHeader, comments, formatting and any
- * unmodeled content untouched.
+ * source. The form reloads on every document change and when XML validation
+ * updates (not only when the panel gains focus). Edits are written back
+ * surgically: only the changed `<elementSpec>` range is rewritten, leaving the
+ * teiHeader, comments, formatting and any unmodeled content untouched.
  */
 export class OddEditorProvider implements vscode.CustomTextEditorProvider {
   public static readonly viewType = "oddTools.graphicalEditor";
@@ -60,21 +65,33 @@ export class OddEditorProvider implements vscode.CustomTextEditorProvider {
     panel.webview.html = this.html(panel.webview);
 
     const post = (selectIdent?: string) => {
+      const model = parseOdd(document.getText());
+      model.xmlError = formatXmlErrors(
+        getXmlWellFormednessErrors(document.uri)
+      );
       panel.webview.postMessage({
         type: "load",
-        model: parseOdd(document.getText()),
+        model,
         selectIdent,
       });
     };
 
-    const changeSub = vscode.workspace.onDidChangeTextDocument((e) => {
-      if (e.document.uri.toString() !== document.uri.toString()) {
-        return;
-      }
-      // Skip reloads triggered by our own surgical edits (preserves field focus);
-      // external edits (source editor) do refresh the form.
+    const reloadIfExternal = () => {
       if (this.selfEditDepth === 0) {
         post();
+      }
+    };
+
+    const changeSub = vscode.workspace.onDidChangeTextDocument((e) => {
+      if (e.document.uri.toString() === document.uri.toString()) {
+        reloadIfExternal();
+      }
+    });
+
+    // Refresh when the XML language service updates validation (may lag edits).
+    const diagSub = vscode.languages.onDidChangeDiagnostics((e) => {
+      if (e.uris.some((u) => u.toString() === document.uri.toString())) {
+        reloadIfExternal();
       }
     });
 
@@ -86,6 +103,7 @@ export class OddEditorProvider implements vscode.CustomTextEditorProvider {
 
     panel.onDidDispose(() => {
       changeSub.dispose();
+      diagSub.dispose();
       msgSub.dispose();
       unregClip();
       unregPanel();
@@ -170,6 +188,9 @@ export class OddEditorProvider implements vscode.CustomTextEditorProvider {
     index: number,
     spec: ElementSpec
   ): Promise<void> {
+    if (getXmlWellFormednessErrors(document.uri).length > 0) {
+      return;
+    }
     const text = document.getText();
     const model = parseOdd(text);
     const target = model.elementSpecs[index];

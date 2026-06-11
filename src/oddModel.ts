@@ -81,10 +81,14 @@ export function parseOdd(text: string): OddModel {
 
 const MODEL_TYPES = new Set(["model", "modelGrp", "modelSequence"]);
 const MODELLED_CHILDREN = new Set([
+  "param",
+  "set-param",
+  "outputRendition",
   "model",
   "modelGrp",
   "modelSequence",
   "desc",
+  "template",
 ]);
 
 function parseElementSpec(text: string, el: XMLElement): ElementSpec {
@@ -93,7 +97,11 @@ function parseElementSpec(text: string, el: XMLElement): ElementSpec {
   for (const child of el.subElements) {
     const name = localName(child.name);
     if (MODEL_TYPES.has(name)) {
-      models.push(parseModel(text, child, name as ModelType));
+      const model = parseModel(text, child, name as ModelType);
+      if (model.hasUnmodeled) {
+        hasUnmodeled = true;
+      }
+      models.push(model);
     } else if (name !== "desc") {
       hasUnmodeled = true;
     }
@@ -121,10 +129,14 @@ function parseModel(
   const params: Param[] = [];
   const renditions: Rendition[] = [];
   const models: ModelNode[] = [];
+  let hasUnmodeled = false;
 
   for (const child of el.subElements) {
     const name = localName(child.name);
     if (name === "param" || name === "set-param") {
+      if (!isEmptyElement(child)) {
+        hasUnmodeled = true;
+      }
       params.push({
         name: attr(child, "name") ?? "",
         value: attr(child, "value") ?? "",
@@ -136,14 +148,20 @@ function parseModel(
         css: innerXml(text, child).trim(),
       });
     } else if (MODEL_TYPES.has(name)) {
-      models.push(parseModel(text, child, name as ModelType));
+      const nested = parseModel(text, child, name as ModelType);
+      if (nested.hasUnmodeled) {
+        hasUnmodeled = true;
+      }
+      models.push(nested);
+    } else if (!MODELLED_CHILDREN.has(name)) {
+      hasUnmodeled = true;
     }
   }
 
   const sourcerend = attr(el, "useSourceRendition");
   const template = childInner(text, el, "template");
 
-  return {
+  const node: ModelNode = {
     type,
     output: attr(el, "output"),
     predicate: attr(el, "predicate"),
@@ -157,6 +175,18 @@ function parseModel(
     renditions,
     models,
   };
+  if (hasUnmodeled) {
+    node.hasUnmodeled = true;
+  }
+  return node;
+}
+
+/** True when an element has no text content and no child elements. */
+function isEmptyElement(el: XMLElement): boolean {
+  if (el.subElements.length > 0) {
+    return false;
+  }
+  return !el.textContents.some((t) => (t.text ?? "").trim().length > 0);
 }
 
 /** Text of the first direct `<desc>` child, trimmed. */

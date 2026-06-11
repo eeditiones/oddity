@@ -40,6 +40,8 @@ export interface ModelNode {
   renditions: Rendition[];
   /** Nested rules, for `modelGrp` / `modelSequence`. */
   models: ModelNode[];
+  /** True when this rule contains markup the form does not model. */
+  hasUnmodeled?: boolean;
 }
 
 export interface ElementSpec {
@@ -78,6 +80,8 @@ export interface OddModel {
   indentUnit: string;
   /** True when the document has no `<schemaSpec>` to edit. */
   empty?: boolean;
+  /** Set when the document is not well-formed XML. */
+  xmlError?: string;
 }
 
 /** Behaviours offered in the dropdown; anything else lands in "custom". */

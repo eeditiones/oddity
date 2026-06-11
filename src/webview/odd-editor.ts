@@ -123,6 +123,9 @@ export class OddEditor extends LitElement {
   };
 
   private save() {
+    if (this.model?.xmlError) {
+      return;
+    }
     const spec = this.currentSpec();
     if (!spec) {
       return;
@@ -172,7 +175,17 @@ export class OddEditor extends LitElement {
       </div>`;
     }
     return html`
-      <div class="layout">
+      <div class="editor-root">
+        ${model.xmlError
+          ? html`<div class="xml-error" role="alert">
+              <strong>Malformed XML</strong> — ${model.xmlError}
+              <div class="xml-error-hint">
+                Fix well-formedness in the text editor. Schema validation errors are
+                ignored here; saving from this form is disabled until the XML parses.
+              </div>
+            </div>`
+          : nothing}
+        <div class="layout">
         <aside class="sidebar">
           <div class="meta">
             <div class="odd-title">${model.meta.title ?? "ODD"}</div>
@@ -213,6 +226,7 @@ export class OddEditor extends LitElement {
             .onDelete=${() => this.deleteSpec()}
           ></elementspec-panel>
         </main>
+        </div>
       </div>
     `;
   }
