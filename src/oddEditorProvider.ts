@@ -13,6 +13,7 @@ import {
 import { registerOddEditorPanel } from "./oddEditorPanels";
 import { showElementSpecPicker } from "./findElementSpec";
 import { ElementSpec, OddMeta, WebviewToHost } from "./oddTypes";
+import { isRecompileEligible } from "./existConfig";
 import {
   formatXmlErrors,
   getXmlWellFormednessErrors,
@@ -73,6 +74,7 @@ export class OddEditorProvider implements vscode.CustomTextEditorProvider {
         type: "load",
         model,
         selectIdent,
+        canRecompile: isRecompileEligible(document.uri.fsPath),
       });
     };
 
@@ -143,6 +145,12 @@ export class OddEditorProvider implements vscode.CustomTextEditorProvider {
         return;
       case "findElementSpec":
         await showElementSpecPicker();
+        return;
+      case "recompileOdd":
+        await vscode.commands.executeCommand(
+          "oddTools.recompileOdd",
+          document.uri
+        );
         return;
     }
   }

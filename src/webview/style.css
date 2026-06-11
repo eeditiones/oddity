@@ -114,6 +114,15 @@ textarea {
   font-size: 0.9em;
 }
 
+.recompile-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  width: 100%;
+  padding: 4px 8px;
+}
+
 .add-element {
   display: flex;
   gap: 4px;

@@ -71,7 +71,7 @@
       },
       {
         "command": "oddTools.recompileOdd",
-        "title": "Recompile in TEI Publisher",
+        "title": "Recompile ODD on server",
         "category": "ODD",
         "icon": "$(sync)"
       },
@@ -99,7 +99,7 @@
         },
         {
           "command": "oddTools.recompileOdd",
-          "when": "resourceExtname == .odd",
+          "when": "resourceExtname == .odd && oddTools.canRecompileOdd",
           "group": "navigation"
         }
       ],
@@ -123,7 +123,7 @@
         },
         {
           "command": "oddTools.recompileOdd",
-          "when": "resourceExtname == .odd",
+          "when": "resourceExtname == .odd && oddTools.canRecompileOdd",
           "group": "1_modification"
         }
       ],
@@ -138,7 +138,7 @@
         },
         {
           "command": "oddTools.recompileOdd",
-          "when": "resourceExtname == .odd"
+          "when": "resourceExtname == .odd && oddTools.canRecompileOdd"
         },
         {
           "command": "oddTools.findElementSpec",

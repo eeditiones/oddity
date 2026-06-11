@@ -97,6 +97,24 @@ export function oddRelativePath(
   return rel.split(path.sep).join("/");
 }
 
+/** True when `docPath` is a recompilable ODD under `{projectRoot}/resources/odd/`. */
+export function isRecompileEligible(docPath: string): boolean {
+  if (!docPath.endsWith(".odd")) {
+    return false;
+  }
+
+  const found = findExistDbConfig(path.dirname(docPath));
+  if (!found) {
+    return false;
+  }
+
+  if (!oddRelativePath(found.projectRoot, docPath)) {
+    return false;
+  }
+
+  return resolveServer(found.config) !== undefined;
+}
+
 /** Gather everything needed to recompile `document`, or `undefined` if ineligible. */
 export function recompileContextFor(
   document: vscode.TextDocument

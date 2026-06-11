@@ -140,6 +140,8 @@ export type HostToWebview =
       model: OddModel;
       /** Select this spec after reload (e.g. following addElementSpec). */
       selectIdent?: string;
+      /** True when Recompile in TEI Publisher applies to this document. */
+      canRecompile?: boolean;
     }
   | { type: "clipState"; clip: OddClipboardState }
   | { type: "selectIdent"; ident?: string; index: number };
@@ -152,4 +154,5 @@ export type WebviewToHost =
   | { type: "updateMeta"; meta: Partial<OddMeta> }
   | { type: "copyClip"; clip: NonNullable<OddClipboardState> }
   | { type: "pasteElementSpec" }
-  | { type: "findElementSpec" };
+  | { type: "findElementSpec" }
+  | { type: "recompileOdd" };

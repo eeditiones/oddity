@@ -24,9 +24,11 @@ export class OddEditor extends LitElement {
   static properties = {
     model: { attribute: false, state: true },
     selected: { attribute: false, state: true },
+    canRecompile: { attribute: false, state: true },
   };
   declare model?: OddModel;
   declare selected: number;
+  declare canRecompile: boolean;
 
   private newIdent = "";
   private pendingSelectIdent?: string;
@@ -37,6 +39,7 @@ export class OddEditor extends LitElement {
   constructor() {
     super();
     this.selected = -1;
+    this.canRecompile = false;
   }
 
   createRenderRoot() {
@@ -72,6 +75,7 @@ export class OddEditor extends LitElement {
       return;
     }
     this.model = data.model;
+    this.canRecompile = data.canRecompile ?? false;
     const specs = this.model.elementSpecs;
     const selectIdent = data.selectIdent ?? this.pendingSelectIdent;
     if (selectIdent) {
@@ -164,6 +168,10 @@ export class OddEditor extends LitElement {
     vscode.postMessage({ type: "deleteElementSpec", index: this.selected });
   }
 
+  private recompile() {
+    vscode.postMessage({ type: "recompileOdd" });
+  }
+
   render(): TemplateResult {
     const model = this.model;
     if (!model) {
@@ -193,6 +201,16 @@ export class OddEditor extends LitElement {
               ? html`<div class="odd-source">source: ${model.meta.source}</div>`
               : nothing}
           </div>
+          ${this.canRecompile
+            ? html`<button
+                class="recompile-btn"
+                title="Recompile on server (requires sync)"
+                @click=${() => this.recompile()}
+              >
+                <span class="codicon codicon-sync"></span>
+                Recompile
+              </button>`
+            : nothing}
           <div class="add-element">
             <input
               type="text"

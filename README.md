@@ -103,8 +103,8 @@ Disable this with `"oddTools.autoBindSchema": false`.
 
 The **ODD: Recompile in TEI Publisher** command (command palette, editor title bar,
 or editor context menu) triggers ODD compilation on a running eXist/TEI Publisher
-instance. It sends `POST /api/odd?odd=…` to the app API and opens the HTML
-compilation report in a side panel.
+instance. It sends `POST /api/odd?odd=…` to the app API and shows a summary
+of the compilation report in a notification.
 
 This only applies when:
 
