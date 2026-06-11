@@ -1,9 +1,15 @@
 import { LitElement, html, nothing, TemplateResult } from "lit";
 import { ModelNode, ModelType, BEHAVIOURS, OUTPUTS, SCOPES } from "../oddTypes";
 import { onDragStart, onDragOver, onDragLeave, onDrop, onDragEnd } from "./dnd";
-import { copyModel, pasteModel, hasClip, onClipChange } from "./clipboard";
+import {
+  copyModel,
+  pasteModel,
+  hasModelClip,
+  onClipChange,
+} from "./clipboard";
 import "./codemirror";
 import type { CmField } from "./codemirror";
+import { ModelOpenState } from "./model-open-state";
 
 const CUSTOM = "__custom__";
 
@@ -21,7 +27,9 @@ export class ModelCard extends LitElement {
     count: { type: Number },
     onRemove: { attribute: false },
     onPaste: { attribute: false },
-    open: { type: Boolean, state: true },
+    specIndex: { type: Number },
+    path: { attribute: false },
+    modelOpenState: { attribute: false },
     custom: { type: Boolean, state: true },
   };
   declare model: ModelNode;
@@ -30,7 +38,9 @@ export class ModelCard extends LitElement {
   declare onRemove?: (i: number) => void;
   /** Insert the clipboard model immediately after the given index. */
   declare onPaste?: (i: number) => void;
-  declare open: boolean;
+  declare specIndex: number;
+  declare path: number[];
+  declare modelOpenState: ModelOpenState;
   /** True while the behaviour is being edited as a free-text custom value. */
   declare custom: boolean;
 
@@ -38,8 +48,17 @@ export class ModelCard extends LitElement {
     super();
     this.index = 0;
     this.count = 1;
-    this.open = false;
+    this.specIndex = 0;
+    this.path = [];
     this.custom = false;
+  }
+
+  private isOpen(): boolean {
+    return this.modelOpenState?.isOpen(this.specIndex, this.path) ?? false;
+  }
+
+  private toggleOpen(): void {
+    this.modelOpenState?.toggle(this.specIndex, this.path);
   }
 
   willUpdate(changed: Map<string, unknown>) {
@@ -77,15 +96,15 @@ export class ModelCard extends LitElement {
   render() {
     const m = this.model;
     return html`
-      <div class="model ${this.open ? "open" : ""}">
-        <div class="model-head" @click=${() => (this.open = !this.open)}>
+      <div class="model ${this.isOpen() ? "open" : ""}">
+        <div class="model-head" @click=${() => this.toggleOpen()}>
           <span
             class="grip codicon codicon-gripper"
             draggable="true"
             title="Drag to reorder"
             @click=${(e: Event) => e.stopPropagation()}
           ></span>
-          <span class="twisty">${this.open ? "▾" : "▸"}</span>
+          <span class="twisty">${this.isOpen() ? "▾" : "▸"}</span>
           <span class="model-title">
             ${m.type}
             ${m.type === "model" && m.behaviour
@@ -99,7 +118,7 @@ export class ModelCard extends LitElement {
           <span class="spacer"></span>
           ${this.toolbar()}
         </div>
-        ${this.open ? this.body() : nothing}
+        ${this.isOpen() ? this.body() : nothing}
       </div>
     `;
   }
@@ -114,7 +133,7 @@ export class ModelCard extends LitElement {
         <button class="icon" title="Copy model" @click=${stop(() => copyModel(this.model))}>
           <span class="codicon codicon-copy"></span>
         </button>
-        ${hasClip()
+        ${hasModelClip()
           ? html`<button
               class="icon"
               title="Paste model after this one"
@@ -360,7 +379,7 @@ export class ModelCard extends LitElement {
     const m = this.model;
     const addModel = (type: ModelType) => {
       m.models.push(emptyModel(type));
-      this.open = true;
+      this.modelOpenState?.setOpen(this.specIndex, this.path, true);
       this.changed();
     };
     return html`
@@ -370,7 +389,7 @@ export class ModelCard extends LitElement {
           <button title="Add model" @click=${() => addModel("model")}>+ model</button>
           <button title="Add modelSequence" @click=${() => addModel("modelSequence")}>+ sequence</button>
           <button title="Add modelGrp" @click=${() => addModel("modelGrp")}>+ group</button>
-          ${hasClip()
+          ${hasModelClip()
             ? html`<button
                 class="icon"
                 title="Paste model"
@@ -378,7 +397,7 @@ export class ModelCard extends LitElement {
                   const c = pasteModel();
                   if (c) {
                     m.models.push(c);
-                    this.open = true;
+                    this.modelOpenState?.setOpen(this.specIndex, this.path, true);
                     this.changed();
                   }
                 }}
@@ -391,6 +410,9 @@ export class ModelCard extends LitElement {
               .model=${child}
               .index=${i}
               .count=${m.models.length}
+              .specIndex=${this.specIndex}
+              .path=${[...this.path, i]}
+              .modelOpenState=${this.modelOpenState}
               @dragstart=${(e: DragEvent) => onDragStart(e, m.models, i)}
               @dragover=${(e: DragEvent) => onDragOver(e, m.models, i)}
               @dragleave=${(e: DragEvent) => onDragLeave(e)}

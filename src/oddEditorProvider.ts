@@ -1,6 +1,17 @@
 import * as vscode from "vscode";
 import { parseOdd } from "./oddModel";
 import { serializeElementSpec } from "./oddSerialize";
+import {
+  insertElementSpec,
+  insertElementSpecFromClipboard,
+} from "./elementSpecInsert";
+import {
+  getOddClipboard,
+  registerOddClipboardPeer,
+  setOddClipboard,
+} from "./oddClipboard";
+import { registerOddEditorPanel } from "./oddEditorPanels";
+import { showElementSpecPicker } from "./findElementSpec";
 import { ElementSpec, OddMeta, WebviewToHost } from "./oddTypes";
 
 /**
@@ -18,6 +29,8 @@ export class OddEditorProvider implements vscode.CustomTextEditorProvider {
 
   /** Guards the self-edit → change-event → reload feedback loop. */
   private editing = false;
+  /** Self-edits can emit change events after `applyEdit` resolves. */
+  private selfEditDepth = 0;
 
   constructor(private readonly context: vscode.ExtensionContext) {}
 
@@ -46,8 +59,12 @@ export class OddEditorProvider implements vscode.CustomTextEditorProvider {
     };
     panel.webview.html = this.html(panel.webview);
 
-    const post = () => {
-      panel.webview.postMessage({ type: "load", model: parseOdd(document.getText()) });
+    const post = (selectIdent?: string) => {
+      panel.webview.postMessage({
+        type: "load",
+        model: parseOdd(document.getText()),
+        selectIdent,
+      });
     };
 
     const changeSub = vscode.workspace.onDidChangeTextDocument((e) => {
@@ -56,7 +73,7 @@ export class OddEditorProvider implements vscode.CustomTextEditorProvider {
       }
       // Skip reloads triggered by our own surgical edits (preserves field focus);
       // external edits (source editor) do refresh the form.
-      if (!this.editing) {
+      if (this.selfEditDepth === 0) {
         post();
       }
     });
@@ -64,10 +81,14 @@ export class OddEditorProvider implements vscode.CustomTextEditorProvider {
     const msgSub = panel.webview.onDidReceiveMessage((msg: WebviewToHost) =>
       this.onMessage(document, panel, msg, post)
     );
+    const unregClip = registerOddClipboardPeer(panel.webview);
+    const unregPanel = registerOddEditorPanel(document, panel);
 
     panel.onDidDispose(() => {
       changeSub.dispose();
       msgSub.dispose();
+      unregClip();
+      unregPanel();
     });
   }
 
@@ -86,8 +107,7 @@ export class OddEditorProvider implements vscode.CustomTextEditorProvider {
         await this.updateElementSpec(document, msg.index, msg.spec);
         return;
       case "addElementSpec":
-        await this.addElementSpec(document, msg.ident, msg.mode);
-        post();
+        await this.addElementSpec(document, msg.ident, post);
         return;
       case "deleteElementSpec":
         await this.deleteElementSpec(document, msg.index);
@@ -97,6 +117,34 @@ export class OddEditorProvider implements vscode.CustomTextEditorProvider {
         await this.updateMeta(document, msg.meta);
         post();
         return;
+      case "copyClip":
+        setOddClipboard(msg.clip);
+        return;
+      case "pasteElementSpec":
+        await this.pasteElementSpec(document, post);
+        return;
+      case "findElementSpec":
+        await showElementSpecPicker();
+        return;
+    }
+  }
+
+  private async pasteElementSpec(
+    document: vscode.TextDocument,
+    post: (selectIdent?: string) => void
+  ): Promise<void> {
+    const clip = getOddClipboard();
+    if (!clip || clip.kind !== "elementSpec") {
+      return;
+    }
+    this.editing = true;
+    try {
+      const result = await insertElementSpecFromClipboard(document, clip.data);
+      if (result) {
+        post(result.ident);
+      }
+    } finally {
+      this.editing = false;
     }
   }
 
@@ -106,10 +154,14 @@ export class OddEditorProvider implements vscode.CustomTextEditorProvider {
     const builder = new vscode.WorkspaceEdit();
     edit(builder);
     this.editing = true;
+    this.selfEditDepth++;
     try {
       await vscode.workspace.applyEdit(builder);
     } finally {
       this.editing = false;
+      queueMicrotask(() => {
+        this.selfEditDepth--;
+      });
     }
   }
 
@@ -130,6 +182,10 @@ export class OddEditorProvider implements vscode.CustomTextEditorProvider {
     const lineStart = text.lastIndexOf("\n", target.range.start - 1) + 1;
     const indent = text.slice(lineStart, target.range.start);
     const xml = serializeElementSpec(indent, model.indentUnit, spec);
+    const current = text.slice(lineStart, target.range.end);
+    if (current === xml) {
+      return;
+    }
     const range = new vscode.Range(
       document.positionAt(lineStart),
       document.positionAt(target.range.end)
@@ -139,19 +195,20 @@ export class OddEditorProvider implements vscode.CustomTextEditorProvider {
 
   private async addElementSpec(
     document: vscode.TextDocument,
-    ident: string,
-    mode: string
+    ident: string | undefined,
+    post: (selectIdent?: string) => void
   ): Promise<void> {
-    const text = document.getText();
-    const model = parseOdd(text);
-    if (model.schemaSpecBodyEnd === undefined) {
-      return;
+    this.editing = true;
+    try {
+      const result = await insertElementSpec(this.context, document, {
+        ident: ident?.trim() || undefined,
+      });
+      if (result) {
+        post(result.ident);
+      }
+    } finally {
+      this.editing = false;
     }
-    const spec: ElementSpec = { ident, mode, models: [] };
-    const xml = serializeElementSpec(model.elementSpecIndent, model.indentUnit, spec);
-    const lineStart = text.lastIndexOf("\n", model.schemaSpecBodyEnd - 1) + 1;
-    const pos = document.positionAt(lineStart);
-    await this.applyEdit((b) => b.insert(document.uri, pos, `${xml}\n`));
   }
 
   private async deleteElementSpec(

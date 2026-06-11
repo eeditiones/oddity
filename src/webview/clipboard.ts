@@ -1,34 +1,72 @@
-import { ModelNode } from "../oddTypes";
+import { ElementSpec, ModelNode, OddClipboardState } from "../oddTypes";
+import { vscode } from "./vscodeApi";
 
 /**
- * An in-webview clipboard for whole model rules, so a model can be copied from
- * one elementSpec and pasted into another. Independent of the OS clipboard (the
- * browser's text copy/paste does not apply to the form). Deep-cloned on both
- * copy and paste, so every paste is a fresh, detached copy.
+ * Clipboard for model rules and whole elementSpecs, stored in the extension host
+ * so copy/paste works across elementSpecs and across graphical editor tabs.
  */
-let clip: ModelNode | null = null;
+let clip: OddClipboardState = null;
 const listeners = new Set<() => void>();
 
-export function copyModel(model: ModelNode): void {
-  clip = clone(model);
+window.addEventListener("message", (e: MessageEvent) => {
+  if (e.data?.type !== "clipState") {
+    return;
+  }
+  clip = e.data.clip ?? null;
   listeners.forEach((fn) => fn());
+});
+
+export function copyModel(model: ModelNode): void {
+  const data = cloneModel(model);
+  clip = { kind: "model", data };
+  listeners.forEach((fn) => fn());
+  vscode.postMessage({ type: "copyClip", clip: { kind: "model", data } });
 }
 
-/** Subscribe to clipboard changes (so paste affordances can update). Returns an unsubscribe. */
+export function copyElementSpec(spec: ElementSpec): void {
+  const data = stripElementSpec(spec);
+  clip = { kind: "elementSpec", data };
+  listeners.forEach((fn) => fn());
+  vscode.postMessage({ type: "copyClip", clip: { kind: "elementSpec", data } });
+}
+
+/** Subscribe to clipboard changes (so paste affordances can update). */
 export function onClipChange(fn: () => void): () => void {
   listeners.add(fn);
   return () => listeners.delete(fn);
 }
 
-/** A fresh clone of the clipboard model, or null when empty. */
+/** A fresh clone of the clipboard model, or null when empty or not a model. */
 export function pasteModel(): ModelNode | null {
-  return clip ? clone(clip) : null;
+  if (clip?.kind !== "model") {
+    return null;
+  }
+  return cloneModel(clip.data);
 }
 
-export function hasClip(): boolean {
-  return clip !== null;
+export function hasModelClip(): boolean {
+  return clip?.kind === "model";
 }
 
-function clone(model: ModelNode): ModelNode {
+export function hasElementSpecClip(): boolean {
+  return clip?.kind === "elementSpec";
+}
+
+/** Ask the host to insert the copied elementSpec into this document. */
+export function pasteElementSpec(): void {
+  if (clip?.kind !== "elementSpec") {
+    return;
+  }
+  vscode.postMessage({ type: "pasteElementSpec" });
+}
+
+function cloneModel(model: ModelNode): ModelNode {
   return JSON.parse(JSON.stringify(model));
+}
+
+function stripElementSpec(spec: ElementSpec): ElementSpec {
+  const { range, hasUnmodeled, ...rest } = spec;
+  void range;
+  void hasUnmodeled;
+  return JSON.parse(JSON.stringify(rest));
 }

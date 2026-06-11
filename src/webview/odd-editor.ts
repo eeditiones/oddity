@@ -1,7 +1,14 @@
 import { LitElement, html, nothing, TemplateResult } from "lit";
 import { OddModel, HostToWebview, ElementSpec } from "../oddTypes";
+import { normalizeXPathFields } from "../xpathUtils";
 import { vscode } from "./vscodeApi";
+import {
+  hasElementSpecClip,
+  onClipChange,
+  pasteElementSpec,
+} from "./clipboard";
 import { ElementSpecPanel } from "./elementspec-panel";
+import { ModelOpenState } from "./model-open-state";
 import "./elementspec-panel";
 
 void ElementSpecPanel;
@@ -24,6 +31,8 @@ export class OddEditor extends LitElement {
   private newIdent = "";
   private pendingSelectIdent?: string;
   private saveTimer?: number;
+  private unsubClip?: () => void;
+  private readonly modelOpenState = new ModelOpenState();
 
   constructor() {
     super();
@@ -36,32 +45,70 @@ export class OddEditor extends LitElement {
 
   connectedCallback() {
     super.connectedCallback();
+    this.modelOpenState.onChange = () => this.requestUpdate();
     window.addEventListener("message", this.onMessage);
     this.addEventListener("odd-change", this.scheduleSave as EventListener);
     this.addEventListener("spec-ident-change", this.onIdentChange as EventListener);
+    this.unsubClip = onClipChange(() => this.requestUpdate());
     vscode.postMessage({ type: "ready" });
   }
 
   disconnectedCallback() {
     super.disconnectedCallback();
     window.removeEventListener("message", this.onMessage);
+    this.unsubClip?.();
   }
 
   private onMessage = (e: MessageEvent<HostToWebview>) => {
-    if (e.data?.type !== "load") {
+    const data = e.data;
+    if (!data) {
       return;
     }
-    this.model = e.data.model;
+    if (data.type === "selectIdent") {
+      this.selectSpec(data.ident, data.index);
+      return;
+    }
+    if (data.type !== "load") {
+      return;
+    }
+    this.model = data.model;
     const specs = this.model.elementSpecs;
-    if (this.pendingSelectIdent) {
-      const i = specs.findIndex((s) => s.ident === this.pendingSelectIdent);
+    const selectIdent = data.selectIdent ?? this.pendingSelectIdent;
+    if (selectIdent) {
+      const i = specs.findIndex((s) => s.ident === selectIdent);
       this.selected = i >= 0 ? i : Math.min(this.selected, specs.length - 1);
       this.pendingSelectIdent = undefined;
     } else if (this.selected < 0 || this.selected >= specs.length) {
       this.selected = specs.length ? 0 : -1;
     }
     this.requestUpdate();
+    this.scrollSelectedIntoView();
   };
+
+  private selectSpec(ident: string | undefined, index: number): void {
+    const specs = this.model?.elementSpecs;
+    if (!specs?.length) {
+      return;
+    }
+    if (ident) {
+      const i = specs.findIndex((s) => s.ident === ident);
+      if (i >= 0) {
+        this.selected = i;
+      }
+    } else if (index >= 0 && index < specs.length) {
+      this.selected = index;
+    }
+    this.requestUpdate();
+    this.scrollSelectedIntoView();
+  }
+
+  private scrollSelectedIntoView(): void {
+    requestAnimationFrame(() => {
+      this.querySelector(".spec-item.active")?.scrollIntoView({
+        block: "nearest",
+      });
+    });
+  }
 
   private onIdentChange = () => {
     // Refresh the left list label without touching selection.
@@ -80,6 +127,9 @@ export class OddEditor extends LitElement {
     if (!spec) {
       return;
     }
+    // Keep the in-memory model aligned with what serialization will write.
+    normalizeXPathFields(spec);
+    this.requestUpdate();
     vscode.postMessage({
       type: "updateElementSpec",
       index: this.selected,
@@ -93,18 +143,21 @@ export class OddEditor extends LitElement {
 
   private addSpec() {
     const ident = this.newIdent.trim();
-    if (!ident) {
-      return;
+    if (ident) {
+      this.pendingSelectIdent = ident;
     }
-    this.pendingSelectIdent = ident;
     this.newIdent = "";
-    vscode.postMessage({ type: "addElementSpec", ident, mode: "change" });
+    vscode.postMessage({
+      type: "addElementSpec",
+      ident: ident || undefined,
+    });
   }
 
   private deleteSpec() {
     if (this.selected < 0) {
       return;
     }
+    this.modelOpenState.removeSpec(this.selected);
     vscode.postMessage({ type: "deleteElementSpec", index: this.selected });
   }
 
@@ -138,6 +191,15 @@ export class OddEditor extends LitElement {
               }}
             />
             <button title="Add element" @click=${() => this.addSpec()}>+</button>
+            ${hasElementSpecClip()
+              ? html`<button
+                  class="icon"
+                  title="Paste elementSpec"
+                  @click=${() => pasteElementSpec()}
+                >
+                  <span class="codicon codicon-clippy"></span>
+                </button>`
+              : nothing}
           </div>
           <div class="spec-list">
             ${this.specList(model)}
@@ -146,6 +208,8 @@ export class OddEditor extends LitElement {
         <main class="main">
           <elementspec-panel
             .spec=${this.currentSpec()}
+            .specIndex=${this.selected}
+            .modelOpenState=${this.modelOpenState}
             .onDelete=${() => this.deleteSpec()}
           ></elementspec-panel>
         </main>

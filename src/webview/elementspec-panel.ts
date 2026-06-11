@@ -1,8 +1,14 @@
 import { LitElement, html, nothing, TemplateResult } from "lit";
 import { ElementSpec, ModelType, MODES } from "../oddTypes";
 import { ModelCard, emptyModel } from "./model-card";
+import { ModelOpenState } from "./model-open-state";
 import { onDragStart, onDragOver, onDragLeave, onDrop, onDragEnd } from "./dnd";
-import { pasteModel, hasClip, onClipChange } from "./clipboard";
+import {
+  copyElementSpec,
+  pasteModel,
+  hasModelClip,
+  onClipChange,
+} from "./clipboard";
 import "./model-card";
 
 void ModelCard;
@@ -15,9 +21,13 @@ void ModelCard;
 export class ElementSpecPanel extends LitElement {
   static properties = {
     spec: { attribute: false },
+    specIndex: { type: Number },
+    modelOpenState: { attribute: false },
     onDelete: { attribute: false },
   };
   declare spec: ElementSpec;
+  declare specIndex: number;
+  declare modelOpenState: ModelOpenState;
   declare onDelete?: () => void;
 
   private unsubClip?: () => void;
@@ -49,7 +59,7 @@ export class ElementSpecPanel extends LitElement {
       return html`<div class="empty-main">Select an element on the left.</div>`;
     }
     const addModel = (type: ModelType) => {
-      spec.models.push(emptyModel(type));
+      spec.models.unshift(emptyModel(type));
       this.changed();
     };
     return html`
@@ -84,14 +94,21 @@ export class ElementSpecPanel extends LitElement {
         <button title="Add model" @click=${() => addModel("model")}>+ model</button>
         <button title="Add modelSequence" @click=${() => addModel("modelSequence")}>+ sequence</button>
         <button title="Add modelGrp" @click=${() => addModel("modelGrp")}>+ group</button>
-        ${hasClip()
+        <button
+          class="icon"
+          title="Copy elementSpec"
+          @click=${() => copyElementSpec(spec)}
+        >
+          <span class="codicon codicon-copy"></span>
+        </button>
+        ${hasModelClip()
           ? html`<button
               class="icon"
               title="Paste model"
               @click=${() => {
                 const c = pasteModel();
                 if (c) {
-                  spec.models.push(c);
+                  spec.models.unshift(c);
                   this.changed();
                 }
               }}
@@ -119,6 +136,9 @@ export class ElementSpecPanel extends LitElement {
                   .model=${m}
                   .index=${i}
                   .count=${spec.models.length}
+                  .specIndex=${this.specIndex}
+                  .path=${[i]}
+                  .modelOpenState=${this.modelOpenState}
                   @dragstart=${(e: DragEvent) => onDragStart(e, spec.models, i)}
                   @dragover=${(e: DragEvent) => onDragOver(e, spec.models, i)}
                   @dragleave=${(e: DragEvent) => onDragLeave(e)}

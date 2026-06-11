@@ -4,6 +4,14 @@
   "description": "Authoring support for ODD files: an ODD-aware outline and graphical editor for TEI Processing Model output transformations.",
   "version": "0.1.0",
   "publisher": "teipublisher",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/eeditiones/oddity.git"
+  },
+  "bugs": {
+    "url": "https://github.com/eeditiones/oddity/issues"
+  },
+  "homepage": "https://github.com/eeditiones/oddity#readme",
   "license": "GPL-3.0-or-later",
   "icon": "media/icon.png",
   "engines": {
@@ -60,6 +68,26 @@
         "title": "Add <elementSpec>",
         "category": "ODD",
         "icon": "$(add)"
+      },
+      {
+        "command": "oddTools.recompileOdd",
+        "title": "Recompile in TEI Publisher",
+        "category": "ODD",
+        "icon": "$(sync)"
+      },
+      {
+        "command": "oddTools.findElementSpec",
+        "title": "Go to elementSpec",
+        "category": "ODD",
+        "icon": "$(search)"
+      }
+    ],
+    "keybindings": [
+      {
+        "command": "oddTools.findElementSpec",
+        "key": "ctrl+f",
+        "mac": "cmd+f",
+        "when": "activeCustomEditorId == oddTools.graphicalEditor"
       }
     ],
     "menus": {
@@ -67,6 +95,11 @@
         {
           "command": "oddTools.openGraphicalEditor",
           "when": "resourceExtname == .odd && activeCustomEditorId != oddTools.graphicalEditor",
+          "group": "navigation"
+        },
+        {
+          "command": "oddTools.recompileOdd",
+          "when": "resourceExtname == .odd",
           "group": "navigation"
         }
       ],
@@ -79,8 +112,18 @@
       ],
       "editor/context": [
         {
+          "command": "oddTools.openGraphicalEditor",
+          "when": "resourceExtname == .odd && editorLangId == xml && activeCustomEditorId != oddTools.graphicalEditor",
+          "group": "navigation"
+        },
+        {
           "command": "oddTools.addElementSpec",
           "when": "resourceExtname == .odd && editorLangId == xml",
+          "group": "1_modification"
+        },
+        {
+          "command": "oddTools.recompileOdd",
+          "when": "resourceExtname == .odd",
           "group": "1_modification"
         }
       ],
@@ -92,6 +135,14 @@
         {
           "command": "oddTools.addElementSpec",
           "when": "resourceExtname == .odd && editorLangId == xml"
+        },
+        {
+          "command": "oddTools.recompileOdd",
+          "when": "resourceExtname == .odd"
+        },
+        {
+          "command": "oddTools.findElementSpec",
+          "when": "activeCustomEditorId == oddTools.graphicalEditor"
         }
       ]
     },

@@ -52,8 +52,9 @@ you either:
 - type a new ident — inserts a blank `mode` / `<model>` scaffold as a snippet,
   leaving `behaviour` for schema-driven completion to fill.
 
-The spec is inserted at the cursor (when it sits inside the schemaSpec) or
-appended before `</schemaSpec>`.
+The spec is inserted immediately after the `<elementSpec>` the cursor sits in,
+or — when the cursor is elsewhere — on the line before `</schemaSpec>`. The editor
+scrolls to the insertion point.
 
 The parent ODD is located by `source`, resolved in order: a sibling file next to
 the current ODD (the normal TEI Publisher layout, and the version-accurate one),
@@ -71,7 +72,10 @@ default; open the graphical view with the **ODD: Open Graphical Editor** command
 
 Both views stay live-synced through the underlying file: edits in the form are
 written back, and edits in the text editor refresh the form. The left panel lists
-every `<elementSpec>` (with add / jump-to-filter); the main panel edits the
+every `<elementSpec>` (with add / jump-to-filter). Adding an element uses the
+same inheritance logic as **ODD: Add Element Spec**: click **+** with an empty
+field to pick from the parent ODD, or type an ident to inherit its definition
+when available (otherwise a blank scaffold is inserted). The main panel edits the
 selected spec's `ident`, `mode`, and its tree of `model` / `modelGrp` /
 `modelSequence` rules — output, predicate, behaviour (with a custom fallback),
 CSS class, description, `<pb:template>`, parameters (`param` / `pb:set-param`)
@@ -94,6 +98,24 @@ Otherwise a managed entry is added to `xml.fileAssociations` so the bundled
 schema applies anyway.
 
 Disable this with `"oddTools.autoBindSchema": false`.
+
+### Recompile in TEI Publisher
+
+The **ODD: Recompile in TEI Publisher** command (command palette, editor title bar,
+or editor context menu) triggers ODD compilation on a running eXist/TEI Publisher
+instance. It sends `POST /api/odd?odd=…` to the app API and opens the HTML
+compilation report in a side panel.
+
+This only applies when:
+
+- the project root contains a `.existdb.json` (as used by the
+  [exist-db VS Code extension](https://marketplace.visualstudio.com/items?itemName=eXist-db.existdb-vscode));
+  server URL, credentials, and app root are read from there;
+- the ODD file lives under `resources/odd/` relative to that project root.
+
+Recompilation operates on the **copy in eXist**, not the local file. Save your
+changes and ensure they are synced or deployed to the database (e.g. via
+exist-db sync) before recompiling.
 
 ## Requirements
 

@@ -122,12 +122,30 @@ export const SCOPES = ["before", "after"];
 /** elementSpec modes. */
 export const MODES = ["change", "add"];
 
+/** In-memory clipboard payload shared across graphical editor webviews. */
+export type OddClipboard =
+  | { kind: "model"; data: ModelNode }
+  | { kind: "elementSpec"; data: ElementSpec };
+
+export type OddClipboardState = OddClipboard | null;
+
 /** Messages exchanged between the webview and the extension host. */
-export type HostToWebview = { type: "load"; model: OddModel };
+export type HostToWebview =
+  | {
+      type: "load";
+      model: OddModel;
+      /** Select this spec after reload (e.g. following addElementSpec). */
+      selectIdent?: string;
+    }
+  | { type: "clipState"; clip: OddClipboardState }
+  | { type: "selectIdent"; ident?: string; index: number };
 
 export type WebviewToHost =
   | { type: "ready" }
   | { type: "updateElementSpec"; index: number; spec: ElementSpec }
-  | { type: "addElementSpec"; ident: string; mode: string }
+  | { type: "addElementSpec"; ident?: string }
   | { type: "deleteElementSpec"; index: number }
-  | { type: "updateMeta"; meta: Partial<OddMeta> };
+  | { type: "updateMeta"; meta: Partial<OddMeta> }
+  | { type: "copyClip"; clip: NonNullable<OddClipboardState> }
+  | { type: "pasteElementSpec" }
+  | { type: "findElementSpec" };

@@ -9,12 +9,44 @@ export function localName(name: string | null): string {
   return idx === -1 ? name : name.slice(idx + 1);
 }
 
+/** Escape a string for use inside a double-quoted XML attribute value. */
+export function escapeXmlAttr(value: string): string {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/"/g, "&quot;");
+}
+
+/** Decode XML entities in an attribute value (@xml-tools leaves them literal). */
+export function unescapeXmlAttr(value: string): string {
+  return value.replace(
+    /&(?:#(\d+)|#x([0-9a-fA-F]+)|(quot|lt|gt|apos|amp));/g,
+    (_, dec: string | undefined, hex: string | undefined, name: string | undefined) => {
+      if (dec !== undefined) {
+        return String.fromCharCode(Number(dec));
+      }
+      if (hex !== undefined) {
+        return String.fromCharCode(parseInt(hex, 16));
+      }
+      const entities: Record<string, string> = {
+        quot: '"',
+        lt: "<",
+        gt: ">",
+        apos: "'",
+        amp: "&",
+      };
+      return name ? entities[name] : "&";
+    }
+  );
+}
+
 /** Value of an attribute by (full) key, or undefined when absent/empty. */
 export function attr(element: XMLElement, key: string): string | undefined {
   const found = element.attributes.find(
     (a: XMLAttribute) => a.key === key && a.value !== null
   );
-  return found?.value ?? undefined;
+  const raw = found?.value;
+  return raw !== undefined && raw !== null ? unescapeXmlAttr(raw) : undefined;
 }
 
 /** Depth-first visit of every element under the given root (inclusive). */

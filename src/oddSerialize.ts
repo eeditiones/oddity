@@ -1,14 +1,16 @@
 import { ElementSpec, ModelNode, Param, Rendition } from "./oddTypes";
+import { escapeXmlAttr } from "./xmlUtils";
+import { preferSingleQuotedStrings } from "./xpathUtils";
 
 /**
  * Serialize an editor {@link ElementSpec} back to ODD XML — the reverse of the
  * parser in {@link parseOdd}, and a port of the TEI Publisher ODD editor's
  * client-side serializer.
  *
- * Values (predicates, templates, rendition CSS, …) are emitted verbatim: they
- * were parsed as raw source fragments, so writing them back unescaped keeps an
- * unchanged elementSpec byte-identical. TEI Publisher predicates use entity-free
- * forms (`gt`, single-quoted strings), so this is safe in practice.
+ * Attribute values (predicates, parameter XPath expressions, …) are XML-escaped
+ * on output and double-quoted XPath literals are normalized to single quotes;
+ * {@link parseOdd} unescapes them on input. Element text (templates, rendition
+ * CSS, descriptions) is still taken from raw source slices.
  *
  * `indent` is the leading whitespace for the `<elementSpec>` line; `unit` is one
  * indentation step. No trailing newline is added, so the result can be spliced
@@ -19,11 +21,11 @@ export function serializeElementSpec(
   unit: string,
   spec: ElementSpec
 ): string {
-  const mode = spec.mode ? ` mode="${spec.mode}"` : "";
+  const mode = serAttr("mode", spec.mode);
   const inner = indent + unit;
   const desc = spec.desc ? `${inner}<desc>${spec.desc}</desc>\n` : "";
   const models = spec.models.map((m) => serializeModel(inner, unit, m)).join("");
-  return `${indent}<elementSpec ident="${spec.ident}"${mode}>\n${desc}${models}${indent}</elementSpec>`;
+  return `${indent}<elementSpec ident="${escapeXmlAttr(spec.ident)}"${mode}>\n${desc}${models}${indent}</elementSpec>`;
 }
 
 function serializeModel(indent: string, unit: string, model: ModelNode): string {
@@ -35,7 +37,7 @@ function serializeModel(indent: string, unit: string, model: ModelNode): string 
 
   const attrs = [
     serAttr("output", model.output),
-    serAttr("predicate", model.predicate),
+    serXPathAttr("predicate", model.predicate),
     model.type === "model" ? serAttr("behaviour", model.behaviour) : "",
     serAttr("cssClass", model.css),
     model.sourcerend ? ` useSourceRendition="true"` : "",
@@ -60,7 +62,7 @@ function serializeParam(indent: string, param: Param): string {
     return "";
   }
   const name = serAttr("name", param.name);
-  const value = serAttr("value", param.value);
+  const value = serXPathAttr("value", param.value);
   return param.set
     ? `${indent}<pb:set-param xmlns=""${name}${value}/>\n`
     : `${indent}<param${name}${value}/>\n`;
@@ -82,5 +84,11 @@ function serializeTemplate(indent: string, template?: string): string {
 }
 
 function serAttr(name: string, value?: string): string {
-  return value ? ` ${name}="${value}"` : "";
+  return value ? ` ${name}="${escapeXmlAttr(value)}"` : "";
+}
+
+function serXPathAttr(name: string, value?: string): string {
+  return value
+    ? ` ${name}="${escapeXmlAttr(preferSingleQuotedStrings(value))}"`
+    : "";
 }
