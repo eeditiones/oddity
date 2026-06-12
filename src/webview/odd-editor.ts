@@ -59,6 +59,10 @@ export class OddEditor extends LitElement {
   disconnectedCallback() {
     super.disconnectedCallback();
     window.removeEventListener("message", this.onMessage);
+    if (this.saveTimer !== undefined) {
+      clearTimeout(this.saveTimer);
+      this.saveTimer = undefined;
+    }
     this.unsubClip?.();
   }
 
@@ -72,6 +76,12 @@ export class OddEditor extends LitElement {
       return;
     }
     if (data.type !== "load") {
+      return;
+    }
+    // A debounced save is pending or in flight — the in-memory model is ahead
+    // of the document; applying `load` would rewind fields mid-typing.
+    if (this.saveTimer !== undefined) {
+      this.canRecompile = data.canRecompile ?? this.canRecompile;
       return;
     }
     this.model = data.model;
@@ -127,6 +137,7 @@ export class OddEditor extends LitElement {
   };
 
   private save() {
+    this.saveTimer = undefined;
     if (this.model?.xmlError) {
       return;
     }

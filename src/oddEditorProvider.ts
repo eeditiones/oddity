@@ -35,8 +35,13 @@ export class OddEditorProvider implements vscode.CustomTextEditorProvider {
 
   /** Guards the self-edit → change-event → reload feedback loop. */
   private editing = false;
-  /** Self-edits can emit change events after `applyEdit` resolves. */
-  private selfEditDepth = 0;
+  /**
+   * Ignore document-change reloads until this timestamp. VS Code may emit
+   * `onDidChangeTextDocument` after `applyEdit` resolves (and after a
+   * microtask), which would otherwise push a stale `load` into the webview
+   * while the user is still typing.
+   */
+  private suppressReloadUntil = 0;
 
   constructor(private readonly context: vscode.ExtensionContext) {}
 
@@ -79,9 +84,10 @@ export class OddEditorProvider implements vscode.CustomTextEditorProvider {
     };
 
     const reloadIfExternal = () => {
-      if (this.selfEditDepth === 0) {
-        post();
+      if (Date.now() < this.suppressReloadUntil) {
+        return;
       }
+      post();
     };
 
     const changeSub = vscode.workspace.onDidChangeTextDocument((e) => {
@@ -180,14 +186,14 @@ export class OddEditorProvider implements vscode.CustomTextEditorProvider {
     const builder = new vscode.WorkspaceEdit();
     edit(builder);
     this.editing = true;
-    this.selfEditDepth++;
+    this.suppressReloadUntil = Math.max(
+      this.suppressReloadUntil,
+      Date.now() + 100
+    );
     try {
       await vscode.workspace.applyEdit(builder);
     } finally {
       this.editing = false;
-      queueMicrotask(() => {
-        this.selfEditDepth--;
-      });
     }
   }
 
