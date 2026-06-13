@@ -9,6 +9,7 @@ import {
   Param,
   Rendition,
 } from "./oddTypes";
+import { parseTemplateContent } from "./templateContent";
 
 /**
  * Parse an ODD document's `<schemaSpec>` into the editor model. The reverse of
@@ -159,7 +160,10 @@ function parseModel(
   }
 
   const sourcerend = attr(el, "useSourceRendition");
-  const template = childInner(text, el, "template");
+  const templateRaw = childInner(text, el, "template");
+  const template = templateRaw
+    ? parseTemplateContent(templateRaw)
+    : undefined;
 
   const node: ModelNode = {
     type,

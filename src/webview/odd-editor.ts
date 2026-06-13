@@ -9,6 +9,7 @@ import {
 } from "./clipboard";
 import { ElementSpecPanel } from "./elementspec-panel";
 import { ModelOpenState } from "./model-open-state";
+import { validateElementSpecTemplates } from "./templateValidation";
 import "./elementspec-panel";
 
 void ElementSpecPanel;
@@ -33,6 +34,16 @@ export class OddEditor extends LitElement {
   private newIdent = "";
   private pendingSelectIdent?: string;
   private saveTimer?: number;
+  private saveGeneration = 0;
+  private lastAppliedGeneration = 0;
+  /** Host is applying an `updateElementSpec` we sent. */
+  private saveInFlight = false;
+  /** Model changed again while a save was in flight. */
+  private resaveNeeded = false;
+  /** True from the first debounced edit until the host applies it. */
+  private pendingSave = false;
+  /** Host is waiting for pending edits before writing the file to disk. */
+  private flushRequested = false;
   private unsubClip?: () => void;
   private readonly modelOpenState = new ModelOpenState();
 
@@ -75,12 +86,39 @@ export class OddEditor extends LitElement {
       this.selectSpec(data.ident, data.index);
       return;
     }
+    if (data.type === "flush") {
+      this.flushRequested = true;
+      if (this.saveTimer !== undefined) {
+        clearTimeout(this.saveTimer);
+        this.saveTimer = undefined;
+      }
+      if (this.pendingSave) {
+        this.save();
+      } else if (!this.saveInFlight) {
+        this.finishFlushIfReady();
+      }
+      return;
+    }
+    if (data.type === "editApplied") {
+      if (data.generation < this.lastAppliedGeneration) {
+        return;
+      }
+      this.lastAppliedGeneration = data.generation;
+      this.saveInFlight = false;
+      if (this.resaveNeeded) {
+        this.resaveNeeded = false;
+        this.save();
+        return;
+      }
+      this.pendingSave = false;
+      this.finishFlushIfReady();
+      return;
+    }
     if (data.type !== "load") {
       return;
     }
-    // A debounced save is pending or in flight — the in-memory model is ahead
-    // of the document; applying `load` would rewind fields mid-typing.
-    if (this.saveTimer !== undefined) {
+    // In-memory model is ahead of the document while edits are pending.
+    if (this.pendingSave || this.saveInFlight || this.resaveNeeded) {
       this.canRecompile = data.canRecompile ?? this.canRecompile;
       return;
     }
@@ -130,7 +168,12 @@ export class OddEditor extends LitElement {
   };
 
   private scheduleSave = () => {
-    if (this.saveTimer) {
+    this.pendingSave = true;
+    if (this.saveInFlight) {
+      this.resaveNeeded = true;
+      return;
+    }
+    if (this.saveTimer !== undefined) {
       clearTimeout(this.saveTimer);
     }
     this.saveTimer = window.setTimeout(() => this.save(), 300);
@@ -138,21 +181,53 @@ export class OddEditor extends LitElement {
 
   private save() {
     this.saveTimer = undefined;
+    if (this.saveInFlight) {
+      this.resaveNeeded = true;
+      return;
+    }
     if (this.model?.xmlError) {
+      this.pendingSave = false;
+      this.finishFlushIfReady();
       return;
     }
     const spec = this.currentSpec();
     if (!spec) {
+      this.pendingSave = false;
+      this.finishFlushIfReady();
+      return;
+    }
+    const templateError = validateElementSpecTemplates(spec);
+    if (templateError) {
+      this.blockSave(this.flushRequested);
       return;
     }
     // Keep the in-memory model aligned with what serialization will write.
     normalizeXPathFields(spec);
-    this.requestUpdate();
+    this.saveGeneration++;
+    this.saveInFlight = true;
+    this.resaveNeeded = false;
     vscode.postMessage({
       type: "updateElementSpec",
       index: this.selected,
       spec: stripRange(spec),
+      generation: this.saveGeneration,
     });
+  }
+
+  private finishFlushIfReady(force = false) {
+    if (
+      this.flushRequested &&
+      (force || (!this.pendingSave && !this.saveInFlight))
+    ) {
+      this.flushRequested = false;
+      vscode.postMessage({ type: "flushDone" });
+    }
+  }
+
+  /** Block persisting invalid template XML; still honour Cmd-S flush when forced. */
+  private blockSave(forceFlush = false) {
+    this.requestUpdate();
+    this.finishFlushIfReady(forceFlush);
   }
 
   private currentSpec(): ElementSpec | undefined {

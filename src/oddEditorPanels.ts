@@ -33,6 +33,11 @@ export function registerOddEditorPanel(
   };
 }
 
+/** The graphical editor panel for a document, if open. */
+export function getOddEditorPanel(uri: vscode.Uri): PanelEntry | undefined {
+  return panels.get(uri.toString());
+}
+
 /** The graphical editor panel for the active tab, if any. */
 export function getActiveOddEditor(): PanelEntry | undefined {
   const activeUri = vscode.window.activeTextEditor?.document.uri.toString();

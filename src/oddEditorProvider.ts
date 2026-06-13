@@ -10,7 +10,7 @@ import {
   registerOddClipboardPeer,
   setOddClipboard,
 } from "./oddClipboard";
-import { registerOddEditorPanel } from "./oddEditorPanels";
+import { getOddEditorPanel, registerOddEditorPanel } from "./oddEditorPanels";
 import { showElementSpecPicker } from "./findElementSpec";
 import { ElementSpec, OddMeta, WebviewToHost } from "./oddTypes";
 import { isRecompileEligible } from "./existConfig";
@@ -42,8 +42,52 @@ export class OddEditorProvider implements vscode.CustomTextEditorProvider {
    * while the user is still typing.
    */
   private suppressReloadUntil = 0;
+  /** Resolvers for `onWillSaveTextDocument` waiting on webview flush. */
+  private readonly flushResolvers = new Map<string, () => void>();
 
-  constructor(private readonly context: vscode.ExtensionContext) {}
+  constructor(private readonly context: vscode.ExtensionContext) {
+    context.subscriptions.push(
+      vscode.workspace.onWillSaveTextDocument((e) => this.onWillSave(e))
+    );
+  }
+
+  private onWillSave(e: vscode.TextDocumentWillSaveEvent): void {
+    if (!e.document.fileName.endsWith(".odd")) {
+      return;
+    }
+    const entry = getOddEditorPanel(e.document.uri);
+    if (!entry) {
+      return;
+    }
+    e.waitUntil(this.waitForWebviewFlush(e.document.uri, entry.panel));
+  }
+
+  private waitForWebviewFlush(
+    uri: vscode.Uri,
+    panel: vscode.WebviewPanel
+  ): Promise<void> {
+    const key = uri.toString();
+    return new Promise((resolve) => {
+      const timeout = setTimeout(() => {
+        if (this.flushResolvers.delete(key)) {
+          resolve();
+        }
+      }, 3000);
+      this.flushResolvers.set(key, () => {
+        clearTimeout(timeout);
+        resolve();
+      });
+      panel.webview.postMessage({ type: "flush" });
+    });
+  }
+
+  private resolveFlush(uri: vscode.Uri): void {
+    const resolve = this.flushResolvers.get(uri.toString());
+    if (resolve) {
+      this.flushResolvers.delete(uri.toString());
+      resolve();
+    }
+  }
 
   public resolveCustomTextEditor(
     document: vscode.TextDocument,
@@ -104,10 +148,56 @@ export class OddEditorProvider implements vscode.CustomTextEditorProvider {
     });
 
     const msgSub = panel.webview.onDidReceiveMessage((msg: WebviewToHost) =>
-      this.onMessage(document, panel, msg, post)
+      this.onMessage(document, panel, msg, post, applyElementSpecUpdate)
     );
     const unregClip = registerOddClipboardPeer(panel.webview);
     const unregPanel = registerOddEditorPanel(document, panel);
+
+    let lastAppliedGeneration = 0;
+    let latestUpdate:
+      | { index: number; spec: ElementSpec; generation: number }
+      | undefined;
+    let drainingUpdates = false;
+
+    const applyElementSpecUpdate = async (
+      index: number,
+      spec: ElementSpec,
+      generation: number
+    ): Promise<void> => {
+      if (generation <= lastAppliedGeneration) {
+        panel.webview.postMessage({
+          type: "editApplied",
+          generation: lastAppliedGeneration,
+        });
+        return;
+      }
+      latestUpdate = { index, spec, generation };
+      if (drainingUpdates) {
+        return;
+      }
+      drainingUpdates = true;
+      this.suppressReloadUntil = Math.max(
+        this.suppressReloadUntil,
+        Date.now() + 500
+      );
+      try {
+        while (latestUpdate) {
+          const update = latestUpdate;
+          latestUpdate = undefined;
+          if (update.generation <= lastAppliedGeneration) {
+            continue;
+          }
+          await this.updateElementSpec(document, update.index, update.spec);
+          lastAppliedGeneration = update.generation;
+        }
+      } finally {
+        drainingUpdates = false;
+        panel.webview.postMessage({
+          type: "editApplied",
+          generation: lastAppliedGeneration,
+        });
+      }
+    };
 
     panel.onDidDispose(() => {
       changeSub.dispose();
@@ -122,15 +212,22 @@ export class OddEditorProvider implements vscode.CustomTextEditorProvider {
     document: vscode.TextDocument,
     panel: vscode.WebviewPanel,
     msg: WebviewToHost,
-    post: () => void
+    post: () => void,
+    applyElementSpecUpdate: (
+      index: number,
+      spec: ElementSpec,
+      generation: number
+    ) => Promise<void>
   ): Promise<void> {
     switch (msg.type) {
       case "ready":
         post();
         return;
       case "updateElementSpec":
-        // In-place field edit: splice the spec, leave the form as-is.
-        await this.updateElementSpec(document, msg.index, msg.spec);
+        await applyElementSpecUpdate(msg.index, msg.spec, msg.generation);
+        return;
+      case "flushDone":
+        this.resolveFlush(document.uri);
         return;
       case "addElementSpec":
         await this.addElementSpec(document, msg.ident, post);
@@ -188,7 +285,7 @@ export class OddEditorProvider implements vscode.CustomTextEditorProvider {
     this.editing = true;
     this.suppressReloadUntil = Math.max(
       this.suppressReloadUntil,
-      Date.now() + 100
+      Date.now() + 250
     );
     try {
       await vscode.workspace.applyEdit(builder);

@@ -1,5 +1,5 @@
 import { LitElement, html, nothing, TemplateResult } from "lit";
-import { ModelNode, ModelType, BEHAVIOURS, OUTPUTS, SCOPES } from "../oddTypes";
+import { ModelNode, ModelType, BEHAVIOURS, OUTPUTS, SCOPES, isXmlTemplateOutput } from "../oddTypes";
 import { onDragStart, onDragOver, onDragLeave, onDrop, onDragEnd } from "./dnd";
 import {
   copyModel,
@@ -10,6 +10,7 @@ import {
 import "./codemirror";
 import type { CmField } from "./codemirror";
 import { ModelOpenState } from "./model-open-state";
+import { validateTemplateXml } from "./templateValidation";
 
 const CUSTOM = "__custom__";
 
@@ -232,12 +233,16 @@ export class ModelCard extends LitElement {
 
   private templateField(): TemplateResult {
     const m = this.model;
+    const xmlOutput = isXmlTemplateOutput(m.output);
+    const templateError = xmlOutput
+      ? validateTemplateXml(m.template ?? "")
+      : undefined;
     const insert = (text: string) => {
       const cm = this.querySelector(".tmpl cm-field") as CmField | null;
       cm?.insert(text);
     };
     return html`
-      <div class="field tmpl">
+      <div class="field tmpl ${templateError ? "invalid" : ""}">
         <span>
           Template
           <span class="tmpl-tools">
@@ -248,13 +253,16 @@ export class ModelCard extends LitElement {
           </span>
         </span>
         <cm-field
-          language="xml"
+          language=${xmlOutput ? "xml" : "text"}
           .value=${m.template ?? ""}
           @cm-change=${(e: CustomEvent<string>) => {
             m.template = e.detail || undefined;
             this.changed();
           }}
         ></cm-field>
+        ${templateError
+          ? html`<div class="field-error" role="alert">${templateError}</div>`
+          : nothing}
       </div>
     `;
   }

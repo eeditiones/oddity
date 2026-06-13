@@ -117,6 +117,18 @@ export const BEHAVIOURS = [
 /** Base output channels. */
 const BASE_OUTPUTS = ["web", "print", "epub", "fo", "latex", "plain", "docx", "typst", "markdown"];
 
+/** Output channels whose templates are XML fragments (not CDATA text). */
+export const XML_TEMPLATE_OUTPUTS = ["web", "print", "epub"] as const;
+
+/** True when a model's template should be well-formed XML, not CDATA text. */
+export function isXmlTemplateOutput(output?: string): boolean {
+  if (!output) {
+    return true;
+  }
+  const base = output.startsWith("opm-") ? output.slice(4) : output;
+  return (XML_TEMPLATE_OUTPUTS as readonly string[]).includes(base);
+}
+
 /** Output channels offered in the dropdown — each base channel plus its `opm-` variant. */
 export const OUTPUTS = [...BASE_OUTPUTS, ...BASE_OUTPUTS.map((o) => `opm-${o}`)];
 
@@ -144,11 +156,22 @@ export type HostToWebview =
       canRecompile?: boolean;
     }
   | { type: "clipState"; clip: OddClipboardState }
-  | { type: "selectIdent"; ident?: string; index: number };
+  | { type: "selectIdent"; ident?: string; index: number }
+  /** Flush debounced field edits before the document is saved to disk. */
+  | { type: "flush" }
+  /** Host finished applying the latest `updateElementSpec`. */
+  | { type: "editApplied"; generation: number };
 
 export type WebviewToHost =
   | { type: "ready" }
-  | { type: "updateElementSpec"; index: number; spec: ElementSpec }
+  | { type: "flushDone" }
+  | {
+      type: "updateElementSpec";
+      index: number;
+      spec: ElementSpec;
+      /** Monotonic id so the host can drop superseded saves. */
+      generation: number;
+    }
   | { type: "addElementSpec"; ident?: string }
   | { type: "deleteElementSpec"; index: number }
   | { type: "updateMeta"; meta: Partial<OddMeta> }

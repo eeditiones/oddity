@@ -1,4 +1,5 @@
 import { ElementSpec, ModelNode, Param, Rendition } from "./oddTypes";
+import { formatTemplateBody } from "./templateContent";
 import { escapeXmlAttr } from "./xmlUtils";
 import { preferSingleQuotedStrings } from "./xpathUtils";
 
@@ -47,7 +48,7 @@ function serializeModel(indent: string, unit: string, model: ModelNode): string 
   const desc = model.desc ? `${nested}<desc>${model.desc}</desc>\n` : "";
   const models = model.models.map((m) => serializeModel(nested, unit, m)).join("");
   const params = model.params.map((p) => serializeParam(nested, p)).join("");
-  const template = serializeTemplate(nested, model.template);
+  const template = serializeTemplate(nested, model.template, model.output);
   const renditions = model.renditions
     .map((r) => serializeRendition(nested, r))
     .join("");
@@ -76,11 +77,16 @@ function serializeRendition(indent: string, rendition: Rendition): string {
   return `${indent}<outputRendition xml:space="preserve"${scope}>\n${indent}${rendition.css}\n${indent}</outputRendition>\n`;
 }
 
-function serializeTemplate(indent: string, template?: string): string {
+function serializeTemplate(
+  indent: string,
+  template: string | undefined,
+  output?: string
+): string {
   if (!template) {
     return "";
   }
-  return `${indent}<pb:template xml:space="preserve" xmlns="">${template}</pb:template>\n`;
+  const body = formatTemplateBody(template, output);
+  return `${indent}<pb:template xml:space="preserve" xmlns="">${body}</pb:template>\n`;
 }
 
 function serAttr(name: string, value?: string): string {
