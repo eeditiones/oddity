@@ -86,36 +86,36 @@ export interface OddModel {
 
 /** Behaviours offered in the dropdown; anything else lands in "custom". */
 export const BEHAVIOURS = [
-  "inline",
-  "block",
   "anchor",
   "alternate",
-  "note",
-  "omit",
-  "pass-through",
-  "paragraph",
-  "section",
-  "heading",
+  "block",
+  "body",
+  "break",
   "cell",
-  "row",
-  "table",
+  "document",
   "figure",
   "graphic",
+  "heading",
+  "index",
+  "inline",
   "link",
   "list",
   "listItem",
-  "break",
-  "index",
-  "title",
   "metadata",
+  "note",
+  "omit",
+  "paragraph",
+  "pass-through",
+  "row",
+  "section",
+  "table",
   "text",
-  "body",
+  "title",
   "webcomponent",
-  "document",
 ];
 
 /** Base output channels. */
-const BASE_OUTPUTS = ["web", "print", "epub", "fo", "latex", "plain", "docx", "typst", "markdown"];
+const BASE_OUTPUTS = ["docx", "epub", "fo", "latex", "markdown", "plain", "print", "typst", "web"];
 
 /** Output channels whose templates are XML fragments (not CDATA text). */
 export const XML_TEMPLATE_OUTPUTS = ["web", "print", "epub"] as const;
