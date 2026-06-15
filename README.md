@@ -1,4 +1,6 @@
-# ODDity
+<p align="center">
+  <img src="media/logo.png" alt="ODDity" width="440">
+</p>
 
 Authoring support for TEI **ODD** (`.odd`) files in VS Code with a focus on TEI Processing Model transformations.
 
