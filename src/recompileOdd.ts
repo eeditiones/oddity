@@ -1,10 +1,14 @@
 import * as path from "path";
 import * as vscode from "vscode";
 import {
+  appCredentialsFromConfig,
   findExistDbConfig,
   isRecompileEligible,
   oddRelativePath,
   recompileContextFor,
+  saveAppCredentials,
+  type ExistDbAppCredentials,
+  type ExistDbConfig,
 } from "./existConfig";
 
 const CAN_RECOMPILE_CONTEXT = "oddTools.canRecompileOdd";
@@ -87,12 +91,17 @@ async function recompileOdd(uri?: vscode.Uri): Promise<void> {
     }
   }
 
+  const appAuth = await resolveAppAuth(ctx.projectRoot, ctx.config);
+  if (!appAuth) {
+    return;
+  }
+
   const url = new URL("api/odd", ctx.appBase.endsWith("/") ? ctx.appBase : ctx.appBase + "/");
   url.searchParams.append("odd", ctx.oddPath);
 
-  const auth = Buffer.from(
-    `${ctx.server.user}:${ctx.server.password}`
-  ).toString("base64");
+  const auth = Buffer.from(`${appAuth.user}:${appAuth.password}`).toString(
+    "base64"
+  );
 
   await vscode.window.withProgress(
     {
@@ -119,7 +128,7 @@ async function recompileOdd(uri?: vscode.Uri): Promise<void> {
 
       if (response.status === 401) {
         vscode.window.showErrorMessage(
-          "Recompile denied: check user/password in .existdb.json (tei group membership required)."
+          "Recompile denied: check app user/password in .existdb.json (tei group membership required)."
         );
         return;
       }
@@ -134,6 +143,43 @@ async function recompileOdd(uri?: vscode.Uri): Promise<void> {
       showReportToast(ctx.oddPath, body);
     }
   );
+}
+
+async function resolveAppAuth(
+  projectRoot: string,
+  config: ExistDbConfig
+): Promise<ExistDbAppCredentials | undefined> {
+  const stored = appCredentialsFromConfig(config);
+  if (stored) {
+    return stored;
+  }
+
+  const user = await vscode.window.showInputBox({
+    title: "TEI Publisher app credentials",
+    prompt: "Username for recompile API (tei group member)",
+    ignoreFocusOut: true,
+  });
+  if (!user) {
+    return undefined;
+  }
+
+  const password = await vscode.window.showInputBox({
+    title: "TEI Publisher app credentials",
+    prompt: "Password",
+    password: true,
+    ignoreFocusOut: true,
+  });
+  if (password === undefined) {
+    return undefined;
+  }
+
+  const credentials = { user, password };
+  if (!saveAppCredentials(projectRoot, credentials)) {
+    vscode.window.showWarningMessage(
+      "App credentials were not saved (no .existdb.json found)."
+    );
+  }
+  return credentials;
 }
 
 async function resolveDocument(

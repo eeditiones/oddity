@@ -12,16 +12,23 @@ export interface ExistDbServer {
   root: string;
 }
 
+export interface ExistDbAppCredentials {
+  user: string;
+  password: string;
+}
+
 export interface ExistDbConfig {
   servers?: Record<string, ExistDbServer>;
   sync?: { server?: string };
+  /** Credentials for TEI Publisher app API calls (e.g. recompile), separate from sync. */
+  app?: ExistDbAppCredentials;
 }
 
 export interface RecompileContext {
   document: vscode.TextDocument;
   projectRoot: string;
+  config: ExistDbConfig;
   appBase: string;
-  server: ExistDbServer;
   /** Path of the ODD relative to `resources/odd/` (e.g. `shakespeare.odd`). */
   oddPath: string;
 }
@@ -142,8 +149,44 @@ export function recompileContextFor(
   return {
     document,
     projectRoot: found.projectRoot,
+    config: found.config,
     appBase: appBaseUri(server.server, server.root),
-    server,
     oddPath,
   };
+}
+
+/** Stored app credentials from `.existdb.json`, if configured. */
+export function appCredentialsFromConfig(
+  config: ExistDbConfig
+): ExistDbAppCredentials | undefined {
+  const user = config.app?.user?.trim();
+  if (!user) {
+    return undefined;
+  }
+  return { user, password: config.app?.password ?? "" };
+}
+
+/** Persist `app` credentials into an existing `.existdb.json`. */
+export function saveAppCredentials(
+  projectRoot: string,
+  credentials: ExistDbAppCredentials
+): boolean {
+  const configPath = path.join(projectRoot, EXISTDB_CONFIG);
+  if (!fs.existsSync(configPath)) {
+    return false;
+  }
+  try {
+    const config = JSON.parse(
+      fs.readFileSync(configPath, "utf8")
+    ) as ExistDbConfig;
+    config.app = credentials;
+    fs.writeFileSync(
+      configPath,
+      JSON.stringify(config, null, 2) + "\n",
+      "utf8"
+    );
+    return true;
+  } catch {
+    return false;
+  }
 }
