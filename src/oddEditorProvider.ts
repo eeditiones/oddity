@@ -104,18 +104,12 @@ export class OddEditorProvider implements vscode.CustomTextEditorProvider {
       ],
     };
     // A distinct tab icon to set the graphical editor apart from a text editor.
-    panel.iconPath = {
-      light: vscode.Uri.joinPath(
-        this.context.extensionUri,
-        "media",
-        "odd-editor-light.svg"
-      ),
-      dark: vscode.Uri.joinPath(
-        this.context.extensionUri,
-        "media",
-        "odd-editor-dark.svg"
-      ),
-    };
+    const icon = vscode.Uri.joinPath(
+      this.context.extensionUri,
+      "media",
+      "oddity_icon.svg"
+    );
+    panel.iconPath = { light: icon, dark: icon };
     panel.webview.html = this.html(panel.webview);
 
     const post = (selectIdent?: string) => {

@@ -13,7 +13,7 @@
   },
   "homepage": "https://github.com/eeditiones/oddity#readme",
   "license": "GPL-3.0-or-later",
-  "icon": "media/icon.png",
+  "icon": "media/oddity_icon.png",
   "engines": {
     "vscode": "^1.84.0"
   },
