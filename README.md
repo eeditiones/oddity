@@ -117,6 +117,19 @@ Recompilation operates on the **copy in eXist**, not the local file. Save your
 changes and ensure they are synced or deployed to the database (e.g. via
 exist-db sync) before recompiling.
 
+## Commands
+
+All commands are listed under the **ODD** category in the command palette
+(<kbd>Ctrl+Shift+P</kbd> / <kbd>Cmd+Shift+P</kbd>).
+
+| Command | Where | What it does |
+| --- | --- | --- |
+| **Open Graphical Editor** | Command palette; editor title bar; explorer / editor context menu (source view) | Open the form-based graphical editor for the current `.odd` file. |
+| **Open elementSpec in Graphical Editor** | Command palette; editor context menu (source view, cursor inside an `<elementSpec>`) | Open the graphical editor beside the source and select the `<elementSpec>` at the cursor. If the graphical editor is already open, focus it and jump to that spec. |
+| **Add &lt;elementSpec&gt;** | Command palette; editor context menu (source view) | Insert a new `<elementSpec>` into `<schemaSpec>` — pick an ident from the inherited ODD or type a new one. Inserts after the spec under the cursor, or before `</schemaSpec>`. |
+| **Go to elementSpec** | Command palette; <kbd>Ctrl+F</kbd> / <kbd>Cmd+F</kbd> (graphical editor) | Quick-pick any `<elementSpec>` in the graphical editor and jump to it. |
+| **Recompile ODD on server** | Command palette; editor title bar; editor context menu | Trigger ODD compilation on a running TEI Publisher instance (when the project is eligible; see above). |
+
 ## Requirements
 
 - VS Code 1.84+

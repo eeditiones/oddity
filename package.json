@@ -80,6 +80,12 @@
         "title": "Go to elementSpec",
         "category": "ODD",
         "icon": "$(search)"
+      },
+      {
+        "command": "oddTools.openGraphicalEditorAtElementSpec",
+        "title": "Open elementSpec in Graphical Editor",
+        "category": "ODD",
+        "icon": "$(symbol-structure)"
       }
     ],
     "keybindings": [
@@ -117,6 +123,11 @@
           "group": "navigation"
         },
         {
+          "command": "oddTools.openGraphicalEditorAtElementSpec",
+          "when": "resourceExtname == .odd && editorLangId == xml && oddTools.cursorInElementSpec",
+          "group": "navigation"
+        },
+        {
           "command": "oddTools.addElementSpec",
           "when": "resourceExtname == .odd && editorLangId == xml",
           "group": "1_modification"
@@ -143,6 +154,10 @@
         {
           "command": "oddTools.findElementSpec",
           "when": "activeCustomEditorId == oddTools.graphicalEditor"
+        },
+        {
+          "command": "oddTools.openGraphicalEditorAtElementSpec",
+          "when": "resourceExtname == .odd && editorLangId == xml && oddTools.cursorInElementSpec"
         }
       ]
     },

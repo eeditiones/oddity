@@ -10,7 +10,11 @@ import {
   registerOddClipboardPeer,
   setOddClipboard,
 } from "./oddClipboard";
-import { getOddEditorPanel, registerOddEditorPanel } from "./oddEditorPanels";
+import {
+  consumePendingElementSpecSelection,
+  getOddEditorPanel,
+  registerOddEditorPanel,
+} from "./oddEditorPanels";
 import { showElementSpecPicker } from "./findElementSpec";
 import { ElementSpec, OddMeta, WebviewToHost } from "./oddTypes";
 import { isRecompileEligible } from "./existConfig";
@@ -220,9 +224,18 @@ export class OddEditorProvider implements vscode.CustomTextEditorProvider {
     ) => Promise<void>
   ): Promise<void> {
     switch (msg.type) {
-      case "ready":
+      case "ready": {
         post();
+        const pending = consumePendingElementSpecSelection(document.uri);
+        if (pending) {
+          panel.webview.postMessage({
+            type: "selectIdent",
+            ident: pending.ident,
+            index: pending.index,
+          });
+        }
         return;
+      }
       case "updateElementSpec":
         await applyElementSpecUpdate(msg.index, msg.spec, msg.generation);
         return;

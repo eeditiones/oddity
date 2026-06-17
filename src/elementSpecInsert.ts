@@ -300,6 +300,31 @@ export function validateIdent(
   return undefined;
 }
 
+/** The `<elementSpec>` containing a byte offset, if any. */
+export function findElementSpecAtOffset(
+  model: ReturnType<typeof parseOdd>,
+  cursorOffset: number
+): { spec: ElementSpec; index: number } | undefined {
+  if (model.empty || model.schemaSpecBodyEnd === undefined) {
+    return undefined;
+  }
+  const bodyEnd = model.schemaSpecBodyEnd;
+  const bodyStart = model.metaRange ? model.metaRange.end : 0;
+  if (cursorOffset <= bodyStart || cursorOffset >= bodyEnd) {
+    return undefined;
+  }
+  const index = model.elementSpecs.findIndex(
+    (spec) =>
+      spec.range &&
+      cursorOffset >= spec.range.start &&
+      cursorOffset < spec.range.end
+  );
+  if (index < 0) {
+    return undefined;
+  }
+  return { spec: model.elementSpecs[index], index };
+}
+
 /**
  * Where to insert a new `<elementSpec>`:
  *
@@ -313,26 +338,14 @@ export function schemaSpecInsertionOffset(
   model: ReturnType<typeof parseOdd>,
   cursorOffset?: number
 ): number {
-  const bodyEnd = model.schemaSpecBodyEnd!;
-  const bodyStart = model.metaRange ? model.metaRange.end : 0;
-
-  if (
-    cursorOffset !== undefined &&
-    cursorOffset > bodyStart &&
-    cursorOffset < bodyEnd
-  ) {
-    const containing = model.elementSpecs.find(
-      (spec) =>
-        spec.range &&
-        cursorOffset >= spec.range.start &&
-        cursorOffset < spec.range.end
-    );
-    if (containing?.range) {
-      return offsetAfterElement(text, containing.range.end);
+  if (cursorOffset !== undefined) {
+    const containing = findElementSpecAtOffset(model, cursorOffset);
+    if (containing?.spec.range) {
+      return offsetAfterElement(text, containing.spec.range.end);
     }
   }
 
-  return lineStartOffset(text, bodyEnd);
+  return lineStartOffset(text, model.schemaSpecBodyEnd!);
 }
 
 /** Byte offset for inserting on the line after an element's closing tag. */

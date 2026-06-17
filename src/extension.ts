@@ -3,6 +3,7 @@ import { OddDocumentSymbolProvider } from "./oddOutline";
 import { registerAddElementSpec } from "./addElementSpec";
 import { OddEditorProvider } from "./oddEditorProvider";
 import { registerFindElementSpec } from "./findElementSpec";
+import { registerOpenGraphicalEditorAtElementSpec } from "./openGraphicalEditorAtElementSpec";
 import { registerRecompileOdd } from "./recompileOdd";
 import { ensureSchemaBinding } from "./schemaBinding";
 
@@ -20,6 +21,7 @@ export function activate(context: vscode.ExtensionContext): void {
     registerAddElementSpec(context),
     registerRecompileOdd(context),
     registerFindElementSpec(context),
+    registerOpenGraphicalEditorAtElementSpec(context),
     vscode.window.registerCustomEditorProvider(
       OddEditorProvider.viewType,
       new OddEditorProvider(context),

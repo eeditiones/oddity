@@ -5,7 +5,13 @@ interface PanelEntry {
   document: vscode.TextDocument;
 }
 
+export interface ElementSpecSelection {
+  ident?: string;
+  index: number;
+}
+
 const panels = new Map<string, PanelEntry>();
+const pendingSelection = new Map<string, ElementSpecSelection>();
 let lastActiveUri: string | undefined;
 
 export function registerOddEditorPanel(
@@ -36,6 +42,26 @@ export function registerOddEditorPanel(
 /** The graphical editor panel for a document, if open. */
 export function getOddEditorPanel(uri: vscode.Uri): PanelEntry | undefined {
   return panels.get(uri.toString());
+}
+
+/** Remember which elementSpec to select when the graphical editor opens. */
+export function setPendingElementSpecSelection(
+  uri: vscode.Uri,
+  selection: ElementSpecSelection
+): void {
+  pendingSelection.set(uri.toString(), selection);
+}
+
+/** Take the pending elementSpec selection for a document, if any. */
+export function consumePendingElementSpecSelection(
+  uri: vscode.Uri
+): ElementSpecSelection | undefined {
+  const key = uri.toString();
+  const selection = pendingSelection.get(key);
+  if (selection) {
+    pendingSelection.delete(key);
+  }
+  return selection;
 }
 
 /** The graphical editor panel for the active tab, if any. */
