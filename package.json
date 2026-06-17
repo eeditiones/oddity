@@ -2,7 +2,7 @@
   "name": "oddity",
   "displayName": "ODDity",
   "description": "Authoring support for ODD files: an ODD-aware outline and graphical editor for TEI Processing Model output transformations.",
-  "version": "0.3.2",
+  "version": "0.4.0",
   "publisher": "teipublisher",
   "repository": {
     "type": "git",
