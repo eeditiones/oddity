@@ -1,6 +1,6 @@
 import { LitElement, html } from "lit";
-import { EditorView, keymap } from "@codemirror/view";
-import { EditorState } from "@codemirror/state";
+import { EditorView, keymap, showPanel, Panel } from "@codemirror/view";
+import { EditorState, EditorSelection, StateEffect, StateField } from "@codemirror/state";
 import { defaultKeymap, history, historyKeymap } from "@codemirror/commands";
 import { xml } from "@codemirror/lang-xml";
 import { css } from "@codemirror/lang-css";
@@ -10,6 +10,7 @@ import {
   HighlightStyle,
   bracketMatching,
   StreamLanguage,
+  syntaxTree,
 } from "@codemirror/language";
 import { tags } from "@lezer/highlight";
 
@@ -121,7 +122,81 @@ const vscodeTheme = EditorView.theme({
     color: "var(--vscode-editorLineNumber-foreground)",
     border: "none",
   },
+  ".cm-input-panel": {
+    padding: "4px 6px",
+    borderTop: "1px solid var(--vscode-input-border, transparent)",
+  },
+  ".cm-input-panel input": {
+    width: "100%",
+    boxSizing: "border-box",
+    color: "var(--vscode-input-foreground)",
+    backgroundColor: "var(--vscode-input-background)",
+    border: "1px solid var(--vscode-input-border, transparent)",
+    fontFamily: "var(--vscode-font-family, sans-serif)",
+  },
 });
+
+/**
+ * The element-name prompt for the "enclose with" command is implemented as a
+ * CodeMirror panel rather than `window.prompt` (which is blocked in webviews).
+ * Toggling the state field shows/hides the input at the bottom of the editor.
+ */
+const toggleEncloseWith = StateEffect.define<boolean>();
+
+const encloseWithState = StateField.define<boolean>({
+  create: () => false,
+  update(value, tr) {
+    for (const e of tr.effects) {
+      if (e.is(toggleEncloseWith)) {
+        value = e.value;
+      }
+    }
+    return value;
+  },
+  provide: (f) =>
+    showPanel.from(f, (on) => (on ? createEncloseWithPanel : null)),
+});
+
+/** Wrap each selection range with `start`/`end`, keeping the text selected. */
+function wrapSelection(view: EditorView, start: string, end: string) {
+  view.dispatch(
+    view.state.changeByRange((range) => ({
+      changes: [
+        { from: range.from, insert: start },
+        { from: range.to, insert: end },
+      ],
+      range: EditorSelection.range(
+        range.from + start.length,
+        range.to + start.length
+      ),
+    }))
+  );
+}
+
+function createEncloseWithPanel(view: EditorView): Panel {
+  const dom = document.createElement("div");
+  dom.className = "cm-input-panel";
+  const input = document.createElement("input");
+  input.type = "text";
+  input.placeholder = "Element name (Enter to confirm, Esc to cancel)";
+  input.addEventListener("keydown", (ev) => {
+    if (ev.key === "Enter") {
+      ev.preventDefault();
+      const tag = input.value.trim();
+      view.dispatch({ effects: toggleEncloseWith.of(false) });
+      if (tag) {
+        wrapSelection(view, `<${tag}>`, `</${tag}>`);
+      }
+      view.focus();
+    } else if (ev.key === "Escape") {
+      ev.preventDefault();
+      view.dispatch({ effects: toggleEncloseWith.of(false) });
+      view.focus();
+    }
+  });
+  dom.appendChild(input);
+  return { top: false, dom, mount: () => setTimeout(() => input.focus(), 50) };
+}
 
 /**
  * A single-value CodeMirror field as a custom element. Set `value` and
@@ -158,6 +233,7 @@ export class CmField extends LitElement {
       syntaxHighlighting(vscodeHighlightStyle, { fallback: true }),
       bracketMatching(),
       EditorView.lineWrapping,
+      encloseWithState,
       vscodeTheme,
       EditorView.updateListener.of((u) => {
         if (u.docChanged && !this.syncing) {
@@ -212,6 +288,87 @@ export class CmField extends LitElement {
       selection: { anchor: from + text.length },
     });
     this.view.focus();
+  }
+
+  /** Find the innermost XML element node enclosing the given position. */
+  private enclosingElement(pos: number) {
+    const tree = syntaxTree(this.view!.state);
+    // Try both sides so a cursor sitting on a tag boundary (e.g. at the very
+    // start of the document, before any click into the editor) still resolves.
+    for (const side of [1, -1] as const) {
+      const node = tree.resolveInner(pos, side);
+      for (let cur: typeof node | null = node; cur; cur = cur.parent) {
+        if (cur.name === "Element") {
+          return cur;
+        }
+      }
+    }
+    return null;
+  }
+
+  /** Extend each selection to cover the XML element around the cursor. */
+  selectElement() {
+    const view = this.view;
+    if (!view) {
+      return;
+    }
+    view.dispatch(
+      view.state.changeByRange((range) => {
+        const el = this.enclosingElement(range.from);
+        if (el) {
+          const sel = EditorSelection.range(el.from, el.to);
+          return { selection: sel, range: sel };
+        }
+        return { range };
+      })
+    );
+    view.focus();
+  }
+
+  /** Prompt for an element name and wrap the current selection in it. */
+  encloseWith() {
+    const view = this.view;
+    if (!view) {
+      return;
+    }
+    view.dispatch({
+      effects: toggleEncloseWith.of(!view.state.field(encloseWithState)),
+    });
+  }
+
+  /** Strip the start/end (or self-closing) tags of the enclosing element. */
+  removeEnclosing() {
+    const view = this.view;
+    if (!view) {
+      return;
+    }
+    view.dispatch(
+      view.state.changeByRange((range) => {
+        const el = this.enclosingElement(range.from);
+        const startTag = el?.firstChild;
+        const endTag = el?.lastChild;
+        if (!el || !startTag || !endTag) {
+          return { range };
+        }
+        if (startTag.name === "SelfClosingTag") {
+          return {
+            range: EditorSelection.cursor(startTag.from),
+            changes: [{ from: startTag.from, to: startTag.to, insert: "" }],
+          };
+        }
+        return {
+          range: EditorSelection.range(
+            startTag.from,
+            endTag.from - (startTag.to - startTag.from)
+          ),
+          changes: [
+            { from: startTag.from, to: startTag.to, insert: "" },
+            { from: endTag.from, to: endTag.to, insert: "" },
+          ],
+        };
+      })
+    );
+    view.focus();
   }
 }
 

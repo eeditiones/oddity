@@ -237,19 +237,32 @@ export class ModelCard extends LitElement {
     const templateError = xmlOutput
       ? validateTemplateXml(m.template ?? "")
       : undefined;
-    const insert = (text: string) => {
-      const cm = this.querySelector(".tmpl cm-field") as CmField | null;
-      cm?.insert(text);
-    };
+    const cmField = () => this.querySelector(".tmpl cm-field") as CmField | null;
     return html`
       <div class="field tmpl ${templateError ? "invalid" : ""}">
         <span>
           Template
           <span class="tmpl-tools">
-            <button type="button" @click=${() => insert("<>")}>&lt;l&gt;</button>
-            <button type="button" @click=${() => insert("<...>")}>&lt;...&gt;</button>
-            <button type="button" @click=${() => insert("<x/>")}>&lt;X&gt;</button>
-            <button type="button" @click=${() => insert("[[content]]")}>[[…]]</button>
+            <button
+              type="button"
+              title="Select enclosing element"
+              @click=${() => cmField()?.selectElement()}
+            >&lt;|&gt;</button>
+            <button
+              type="button"
+              title="Enclose selection in a new element"
+              @click=${() => cmField()?.encloseWith()}
+            >&lt;...&gt;</button>
+            <button
+              type="button"
+              title="Remove enclosing tags"
+              @click=${() => cmField()?.removeEnclosing()}
+            >&lt;X&gt;</button>
+            <button
+              type="button"
+              title="Insert content placeholder"
+              @click=${() => cmField()?.insert("[[content]]")}
+            >[[…]]</button>
           </span>
         </span>
         <cm-field
