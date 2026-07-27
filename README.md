@@ -2,7 +2,7 @@
   <img src="media/oddity_logo_final.png" alt="ODDity" width="440">
 </p>
 
-Authoring support for TEI **ODD** (`.odd`) files in VS Code with a focus on TEI Processing Model transformations.
+Authoring support for TEI **ODD** (`.odd`) files in VS Code with a focus on [TEI Processing Model](https://tei-publisher.org/doc/documentation.xml?id=odd#odd) transformations. The extension was created as a companion for [TEI Publisher's](https://tei-publisher.org/index.html) web-based ODD editor.
 
 ODD files are TEI XML, so general editing — validation, completion, hover,
 formatting — is handled by the [Red Hat XML extension](https://marketplace.visualstudio.com/items?itemName=redhat.vscode-xml)
