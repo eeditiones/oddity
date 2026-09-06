@@ -3,7 +3,7 @@
   "displayName": "ODDity",
   "description": "Authoring support for ODD files: an ODD-aware outline and graphical editor for TEI Processing Model output transformations.",
   "version": "0.4.1",
-  "publisher": "eXist-db",
+  "publisher": "e-editiones",
   "repository": {
     "type": "git",
     "url": "https://github.com/eeditiones/oddity.git"

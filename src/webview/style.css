@@ -131,6 +131,19 @@ textarea {
   flex: 1;
 }
 
+.sidebar-toolbar {
+  display: flex;
+  gap: 4px;
+}
+.sidebar-toolbar button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  flex: 1;
+  padding: 4px 8px;
+}
+
 .spec-list {
   flex: 1;
   overflow: auto;

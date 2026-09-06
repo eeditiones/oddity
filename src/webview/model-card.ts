@@ -9,7 +9,7 @@ import {
 } from "./clipboard";
 import "./codemirror";
 import type { CmField } from "./codemirror";
-import { ModelOpenState } from "./model-open-state";
+import { ModelOpenState, modelPathKey } from "./model-open-state";
 import { validateTemplateXml } from "./templateValidation";
 
 const CUSTOM = "__custom__";
@@ -97,7 +97,7 @@ export class ModelCard extends LitElement {
   render() {
     const m = this.model;
     return html`
-      <div class="model ${this.isOpen() ? "open" : ""}">
+      <div class="model ${this.isOpen() ? "open" : ""}" data-model-path=${modelPathKey(this.path)}>
         <div class="model-head" @click=${() => this.toggleOpen()}>
           <span
             class="grip codicon codicon-gripper"

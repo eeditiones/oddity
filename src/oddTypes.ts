@@ -156,7 +156,7 @@ export type HostToWebview =
       canRecompile?: boolean;
     }
   | { type: "clipState"; clip: OddClipboardState }
-  | { type: "selectIdent"; ident?: string; index: number }
+  | { type: "selectIdent"; ident?: string; index: number; modelPath?: number[] }
   /** Flush debounced field edits before the document is saved to disk. */
   | { type: "flush" }
   /** Host finished applying the latest `updateElementSpec`. */

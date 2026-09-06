@@ -8,7 +8,7 @@ import {
   pasteElementSpec,
 } from "./clipboard";
 import { ElementSpecPanel } from "./elementspec-panel";
-import { ModelOpenState } from "./model-open-state";
+import { ModelOpenState, modelPathKey } from "./model-open-state";
 import { validateElementSpecTemplates } from "./templateValidation";
 import "./elementspec-panel";
 
@@ -83,7 +83,7 @@ export class OddEditor extends LitElement {
       return;
     }
     if (data.type === "selectIdent") {
-      this.selectSpec(data.ident, data.index);
+      this.selectSpec(data.ident, data.index, data.modelPath);
       return;
     }
     if (data.type === "flush") {
@@ -137,7 +137,11 @@ export class OddEditor extends LitElement {
     this.scrollSelectedIntoView();
   };
 
-  private selectSpec(ident: string | undefined, index: number): void {
+  private selectSpec(
+    ident: string | undefined,
+    index: number,
+    modelPath?: number[]
+  ): void {
     const specs = this.model?.elementSpecs;
     if (!specs?.length) {
       return;
@@ -150,14 +154,33 @@ export class OddEditor extends LitElement {
     } else if (index >= 0 && index < specs.length) {
       this.selected = index;
     }
+    if (modelPath?.length && this.selected >= 0) {
+      for (let i = 1; i <= modelPath.length; i++) {
+        this.modelOpenState.setOpen(this.selected, modelPath.slice(0, i), true);
+      }
+    }
     this.requestUpdate();
     this.scrollSelectedIntoView();
+    if (modelPath?.length) {
+      this.scrollModelIntoView(modelPath);
+    }
   }
 
   private scrollSelectedIntoView(): void {
     requestAnimationFrame(() => {
       this.querySelector(".spec-item.active")?.scrollIntoView({
         block: "nearest",
+      });
+    });
+  }
+
+  private scrollModelIntoView(modelPath: number[]): void {
+    const key = modelPathKey(modelPath);
+    void this.updateComplete.then(() => {
+      requestAnimationFrame(() => {
+        this.querySelector(`[data-model-path="${key}"]`)?.scrollIntoView({
+          block: "nearest",
+        });
       });
     });
   }
@@ -318,6 +341,15 @@ export class OddEditor extends LitElement {
                 </button>`
               : nothing}
           </div>
+          <div class="sidebar-toolbar">
+            <button
+              title="Go to elementSpec or TEI debug class (Ctrl/Cmd+F)"
+              @click=${() => vscode.postMessage({ type: "findElementSpec" })}
+            >
+              <span class="codicon codicon-search"></span>
+              Go to elementSpec
+            </button>
+          </div>
           <div class="spec-list">
             ${this.specList(model)}
           </div>
@@ -336,8 +368,16 @@ export class OddEditor extends LitElement {
   }
 
   private specList(model: OddModel): TemplateResult[] {
-    return model.elementSpecs.map(
-        (spec, index) => html`
+    // Display order only — keep model indices so save/delete stay correct.
+    return model.elementSpecs
+      .map((spec, index) => ({ spec, index }))
+      .sort((a, b) =>
+        (a.spec.ident || "").localeCompare(b.spec.ident || "", undefined, {
+          sensitivity: "base",
+        })
+      )
+      .map(
+        ({ spec, index }) => html`
           <div
             class="spec-item ${index === this.selected ? "active" : ""}"
             @click=${() => {
