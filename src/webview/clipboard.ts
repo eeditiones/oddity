@@ -1,4 +1,4 @@
-import { ElementSpec, ModelNode, OddClipboardState } from "../oddTypes";
+import { ElementSpec, ModelNode, ModelType, OddClipboardState } from "../oddTypes";
 import { vscode } from "./vscodeApi";
 
 /**
@@ -48,6 +48,11 @@ export function hasModelClip(): boolean {
   return clip?.kind === "model";
 }
 
+/** Type of the copied rule, so a paste target can refuse what it can't hold. */
+export function modelClipType(): ModelType | null {
+  return clip?.kind === "model" ? clip.data.type : null;
+}
+
 export function hasElementSpecClip(): boolean {
   return clip?.kind === "elementSpec";
 }
@@ -65,8 +70,9 @@ function cloneModel(model: ModelNode): ModelNode {
 }
 
 function stripElementSpec(spec: ElementSpec): ElementSpec {
-  const { range, hasUnmodeled, ...rest } = spec;
+  const { range, hasUnmodeled, otherChildren, ...rest } = spec;
   void range;
   void hasUnmodeled;
+  void otherChildren;
   return JSON.parse(JSON.stringify(rest));
 }

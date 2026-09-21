@@ -201,6 +201,16 @@ textarea {
   background: var(--vscode-inputValidation-warningBackground, rgba(255, 200, 0, 0.15));
   border: 1px solid var(--vscode-inputValidation-warningBorder, rgba(255, 200, 0, 0.4));
 }
+.note {
+  margin: var(--gap) 0;
+  padding: 6px 8px;
+  border-radius: var(--radius);
+  color: var(--vscode-descriptionForeground);
+  border: 1px solid var(--vscode-widget-border, rgba(128, 128, 128, 0.35));
+}
+.note code {
+  color: var(--vscode-foreground);
+}
 
 /* ---- models ---- */
 .models {
@@ -384,6 +394,12 @@ cm-field .cm-editor {
 }
 .src-rend {
   margin-left: auto;
+}
+/* A field the ODD schema doesn't allow here, shown because the file has it. */
+.schema-violation {
+  border-left: 2px solid
+    var(--vscode-inputValidation-warningBorder, rgba(255, 200, 0, 0.6));
+  padding-left: 6px;
 }
 .nested {
   margin-top: 4px;

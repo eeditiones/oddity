@@ -1,4 +1,4 @@
-import { ElementSpec, ModelNode, Param, Rendition } from "./oddTypes";
+import { ElementSpec, ModelNode, Param, Rendition, RULE_SCHEMA } from "./oddTypes";
 import { formatTemplateBody } from "./templateContent";
 import { escapeXmlAttr } from "./xmlUtils";
 import { preferSingleQuotedStrings } from "./xpathUtils";
@@ -25,35 +25,59 @@ export function serializeElementSpec(
   const mode = serAttr("mode", spec.mode);
   const inner = indent + unit;
   const desc = spec.desc ? `${inner}<desc>${spec.desc}</desc>\n` : "";
-  const models = spec.models.map((m) => serializeModel(inner, unit, m)).join("");
+  const models = serializeModels(inner, unit, spec.models);
   return `${indent}<elementSpec ident="${escapeXmlAttr(spec.ident)}"${mode}>\n${desc}${models}${indent}</elementSpec>`;
 }
 
-function serializeModel(indent: string, unit: string, model: ModelNode): string {
+/** A run of sibling rules, each on its own line and each ending in a newline. */
+export function serializeModels(
+  indent: string,
+  unit: string,
+  models: ModelNode[]
+): string {
+  return models.map((m) => serializeModel(indent, unit, m)).join("");
+}
+
+/** One rule and its subtree. Empty when the rule carries no behaviour. */
+export function serializeModel(indent: string, unit: string, model: ModelNode): string {
   // A bare <model> with no behaviour carries no meaning and is dropped.
   if (model.type === "model" && !model.behaviour) {
     return "";
   }
   const nested = indent + unit;
+  // Each kind of rule takes a different set of attributes and children; writing
+  // out anything else would produce ODD the schema rejects.
+  const allow = RULE_SCHEMA[model.type];
 
   const attrs = [
     serAttr("output", model.output),
-    serXPathAttr("predicate", model.predicate),
-    model.type === "model" ? serAttr("behaviour", model.behaviour) : "",
-    serAttr("cssClass", model.css),
+    allow.predicate ? serXPathAttr("predicate", model.predicate) : "",
+    allow.behaviour ? serAttr("behaviour", model.behaviour) : "",
+    allow.cssClass ? serAttr("cssClass", model.css) : "",
     model.sourcerend ? ` useSourceRendition="true"` : "",
-    serAttr("pb:mode", model.mode),
+    allow.pbMode ? serAttr("pb:mode", model.mode) : "",
   ].join("");
 
   const desc = model.desc ? `${nested}<desc>${model.desc}</desc>\n` : "";
-  const models = model.models.map((m) => serializeModel(nested, unit, m)).join("");
-  const params = model.params.map((p) => serializeParam(nested, p)).join("");
-  const template = serializeTemplate(nested, model.template, model.output);
+  const models = serializeModels(
+    nested,
+    unit,
+    model.models.filter((m) => allow.nested.includes(m.type))
+  );
+  const params = allow.params
+    ? model.params.map((p) => serializeParam(nested, p)).join("")
+    : "";
+  const template = allow.template
+    ? serializeTemplate(nested, model.template, model.output)
+    : "";
   const renditions = model.renditions
+    .slice(0, allow.renditions)
     .map((r) => serializeRendition(nested, r))
     .join("");
 
-  const innerXml = `${desc}${models}${params}${template}${renditions}`;
+  // Child order the schema requires: desc, then `model`'s own params/template,
+  // then outputRendition, and last the nested rules of a group or sequence.
+  const innerXml = `${desc}${params}${template}${renditions}${models}`;
   const end = innerXml.length > 0 ? `>\n${innerXml}${indent}</${model.type}` : "/";
   return `${indent}<${model.type}${attrs}${end}>\n`;
 }

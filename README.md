@@ -83,13 +83,15 @@ selected spec's `ident`, `mode`, and its tree of `model` / `modelGrp` /
 CSS class, description, `<pb:template>`, parameters (`param` / `pb:set-param`)
 and output renditions. Predicate and template fields use an embedded CodeMirror.
 
-Edits are written back **surgically**: only the changed `<elementSpec>`'s source
-range is rewritten, so the teiHeader, comments, and untouched specs keep their
-exact formatting. A spec you edit is reformatted to canonical indentation (as the
-old editor did); specs you don't touch are never rewritten. Schema content the
-form doesn't model (`attList`, `content`, …) is preserved everywhere except
-inside a spec you edit and save — the editor warns when a spec contains such
-markup.
+Edits are written back **surgically**: saving never regenerates the document, or
+even a whole `<elementSpec>`. Schema content the
+form doesn't model (`attList`, `content`, `classes`, `constraintSpec`, …), other
+attributes, indentation and comments all survive byte for byte. The
+panel lists a spec's non-rule children so it is clear what the form isn't
+showing you.
+
+The form is **schema-aware about what each kind of rule may hold**, so it can't
+be used to build ODD the schema rejects.
 
 ### Automatic schema binding
 

@@ -56,8 +56,9 @@ function cloneModel(model: ModelNode): ModelNode {
 }
 
 function stripElementSpec(spec: ElementSpec): ElementSpec {
-  const { range, hasUnmodeled, ...rest } = spec;
+  const { range, hasUnmodeled, otherChildren, ...rest } = spec;
   void range;
   void hasUnmodeled;
+  void otherChildren;
   return JSON.parse(JSON.stringify(rest));
 }

@@ -1,10 +1,18 @@
 import { LitElement, html, nothing, TemplateResult } from "lit";
-import { ModelNode, ModelType, BEHAVIOURS, OUTPUTS, SCOPES, isXmlTemplateOutput } from "../oddTypes";
+import {
+  ModelNode,
+  ModelType,
+  BEHAVIOURS,
+  OUTPUTS,
+  RULE_SCHEMA,
+  SCOPES,
+  isXmlTemplateOutput,
+} from "../oddTypes";
 import { onDragStart, onDragOver, onDragLeave, onDrop, onDragEnd } from "./dnd";
 import {
   copyModel,
   pasteModel,
-  hasModelClip,
+  modelClipType,
   onClipChange,
 } from "./clipboard";
 import "./codemirror";
@@ -13,6 +21,15 @@ import { ModelOpenState, modelPathKey } from "./model-open-state";
 import { validateTemplateXml } from "./templateValidation";
 
 const CUSTOM = "__custom__";
+
+/** Everything an `<elementSpec>` itself accepts, the default container. */
+const ALL_RULE_TYPES: ModelType[] = ["model", "modelGrp", "modelSequence"];
+
+const ADD_LABELS: Record<ModelType, string> = {
+  model: "model",
+  modelGrp: "group",
+  modelSequence: "sequence",
+};
 
 /**
  * Editor for one model / modelGrp / modelSequence rule and (recursively) its
@@ -31,6 +48,7 @@ export class ModelCard extends LitElement {
     specIndex: { type: Number },
     path: { attribute: false },
     modelOpenState: { attribute: false },
+    siblingTypes: { attribute: false },
     custom: { type: Boolean, state: true },
   };
   declare model: ModelNode;
@@ -42,6 +60,8 @@ export class ModelCard extends LitElement {
   declare specIndex: number;
   declare path: number[];
   declare modelOpenState: ModelOpenState;
+  /** Rule types this card's container accepts, for gating a sibling paste. */
+  declare siblingTypes: ModelType[];
   /** True while the behaviour is being edited as a free-text custom value. */
   declare custom: boolean;
 
@@ -51,6 +71,7 @@ export class ModelCard extends LitElement {
     this.count = 1;
     this.specIndex = 0;
     this.path = [];
+    this.siblingTypes = ALL_RULE_TYPES;
     this.custom = false;
   }
 
@@ -124,6 +145,12 @@ export class ModelCard extends LitElement {
     `;
   }
 
+  /** True when the clipboard rule may sit alongside this one in its container. */
+  private pasteableSibling(): boolean {
+    const clip = modelClipType();
+    return clip !== null && this.siblingTypes.includes(clip);
+  }
+
   private toolbar(): TemplateResult {
     const stop = (fn: () => void) => (e: Event) => {
       e.stopPropagation();
@@ -134,7 +161,7 @@ export class ModelCard extends LitElement {
         <button class="icon" title="Copy model" @click=${stop(() => copyModel(this.model))}>
           <span class="codicon codicon-copy"></span>
         </button>
-        ${hasModelClip()
+        ${this.pasteableSibling()
           ? html`<button
               class="icon"
               title="Paste model after this one"
@@ -151,6 +178,7 @@ export class ModelCard extends LitElement {
 
   private body(): TemplateResult {
     const m = this.model;
+    const allow = RULE_SCHEMA[m.type];
     return html`
       <div class="model-body">
         <div class="row">
@@ -160,35 +188,84 @@ export class ModelCard extends LitElement {
             ["", ...OUTPUTS],
             (v) => (m.output = v || undefined)
           )}
-          ${this.text("Mode (pb:mode)", m.mode ?? "", (v) => (m.mode = v || undefined))}
+          ${this.gated(allow.pbMode, m.mode !== undefined, () =>
+            this.text("Mode (pb:mode)", m.mode ?? "", (v) => (m.mode = v || undefined))
+          )}
+          <label class="inline src-rend">
+            <input
+              type="checkbox"
+              ?checked=${!!m.sourcerend}
+              @change=${(e: Event) => {
+                m.sourcerend = (e.target as HTMLInputElement).checked;
+                this.changed();
+              }}
+            />Use source rendition
+          </label>
         </div>
 
         ${this.text("Description", m.desc ?? "", (v) => (m.desc = v || undefined))}
 
-        <div class="field">
-          <span>Predicate</span>
-          <cm-field
-            language="xquery"
-            .value=${m.predicate ?? ""}
-            @cm-change=${(e: CustomEvent<string>) => {
-              m.predicate = e.detail || undefined;
-              this.changed();
-            }}
-          ></cm-field>
-        </div>
+        ${this.gated(allow.predicate, !!m.predicate, () => html`
+          <div class="field">
+            <span>Predicate</span>
+            <cm-field
+              language="xquery"
+              .value=${m.predicate ?? ""}
+              @cm-change=${(e: CustomEvent<string>) => {
+                m.predicate = e.detail || undefined;
+                this.changed();
+              }}
+            ></cm-field>
+          </div>
+        `)}
 
-        ${m.type === "model" ? this.behaviourField() : nothing}
+        ${allow.behaviour ? this.behaviourField() : nothing}
 
-        ${this.text("CSS Class", m.css ?? "", (v) => (m.css = v || undefined))}
+        ${this.gated(allow.cssClass, m.css !== undefined, () =>
+          this.text("CSS Class", m.css ?? "", (v) => (m.css = v || undefined))
+        )}
 
-        ${this.templateField()}
+        ${this.gated(allow.template, m.template !== undefined, () =>
+          this.templateField()
+        )}
 
-        ${this.paramsSection()}
-        ${this.renditionsSection()}
-
-        ${m.type !== "model" ? this.nestedModels() : nothing}
+        ${this.gated(allow.params, m.params.length > 0, () =>
+          this.paramsSection()
+        )}
+        ${this.gated(allow.renditions > 0, m.renditions.length > 0, () =>
+          this.renditionsSection(allow.renditions)
+        )}
+        ${this.gated(allow.nested.length > 0, m.models.length > 0, () =>
+          this.nestedModels(allow.nested)
+        )}
       </div>
     `;
+  }
+
+  /**
+   * Render a field only where the ODD content model allows it, so the form
+   * can't be used to build invalid ODD. A value that is nonetheless already in
+   * the file is still shown, flagged, rather than hidden while the serializer
+   * quietly drops it.
+   */
+  private gated(
+    allowed: boolean,
+    present: boolean,
+    render: () => TemplateResult
+  ): TemplateResult | typeof nothing {
+    if (allowed) {
+      return render();
+    }
+    if (!present) {
+      return nothing;
+    }
+    return html`<div
+      class="schema-violation"
+      title="The ODD schema does not allow this on <${this.model
+        .type}>; it is dropped when this rule is saved."
+    >
+      ${render()}
+    </div>`;
   }
 
   private behaviourField(): TemplateResult {
@@ -335,30 +412,22 @@ export class ModelCard extends LitElement {
     `;
   }
 
-  private renditionsSection(): TemplateResult {
+  private renditionsSection(limit: number): TemplateResult {
     const m = this.model;
     return html`
       <div class="section">
         <div class="section-head">
           <strong>Renditions</strong>
-          <button
-            class="icon"
-            title="Add rendition"
-            @click=${() => {
-              m.renditions.push({ scope: undefined, css: "" });
-              this.changed();
-            }}
-          ><span class="codicon codicon-add"></span></button>
-          <label class="inline src-rend">
-            <input
-              type="checkbox"
-              ?checked=${!!m.sourcerend}
-              @change=${(e: Event) => {
-                m.sourcerend = (e.target as HTMLInputElement).checked;
-                this.changed();
-              }}
-            />Use source rendition
-          </label>
+          ${m.renditions.length < limit
+            ? html`<button
+                class="icon"
+                title="Add rendition"
+                @click=${() => {
+                  m.renditions.push({ scope: undefined, css: "" });
+                  this.changed();
+                }}
+              ><span class="codicon codicon-add"></span></button>`
+            : nothing}
         </div>
         ${m.renditions.map(
           (r, i) => html`
@@ -396,24 +465,28 @@ export class ModelCard extends LitElement {
     `;
   }
 
-  private nestedModels(): TemplateResult {
+  private nestedModels(allowed: ModelType[]): TemplateResult {
     const m = this.model;
     const addModel = (type: ModelType) => {
       m.models.push(emptyModel(type));
       this.modelOpenState?.setOpen(this.specIndex, this.path, true);
       this.changed();
     };
+    const clip = modelClipType();
     return html`
       <div class="section nested">
         <div class="section-head">
           <strong>Nested models</strong>
-          <button title="Add model" @click=${() => addModel("model")}>+ model</button>
-          <button title="Add modelSequence" @click=${() => addModel("modelSequence")}>+ sequence</button>
-          <button title="Add modelGrp" @click=${() => addModel("modelGrp")}>+ group</button>
-          ${hasModelClip()
+          ${allowed.map(
+            (type) => html`<button
+              title="Add ${type}"
+              @click=${() => addModel(type)}
+            >+ ${ADD_LABELS[type]}</button>`
+          )}
+          ${clip && allowed.includes(clip)
             ? html`<button
                 class="icon"
-                title="Paste model"
+                title="Paste ${clip}"
                 @click=${() => {
                   const c = pasteModel();
                   if (c) {
@@ -434,6 +507,7 @@ export class ModelCard extends LitElement {
               .specIndex=${this.specIndex}
               .path=${[...this.path, i]}
               .modelOpenState=${this.modelOpenState}
+              .siblingTypes=${allowed}
               @dragstart=${(e: DragEvent) => onDragStart(e, m.models, i)}
               @dragover=${(e: DragEvent) => onDragOver(e, m.models, i)}
               @dragleave=${(e: DragEvent) => onDragLeave(e)}

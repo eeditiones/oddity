@@ -13,6 +13,9 @@ import "./model-card";
 
 void ModelCard;
 
+/** An `<elementSpec>` accepts all three rule types directly. */
+const SPEC_RULE_TYPES: ModelType[] = ["model", "modelGrp", "modelSequence"];
+
 /**
  * The main panel: one selected elementSpec — its ident and mode, a toolbar, and
  * the list of top-level model cards. Owns the spec's top-level `models` array
@@ -121,9 +124,17 @@ export class ElementSpecPanel extends LitElement {
 
       ${spec.hasUnmodeled
         ? html`<div class="warn">
-            This element contains markup the form doesn't edit (e.g. attList /
-            content). Saving changes here regenerates only its models; unmodeled
-            children are not preserved.
+            A rule below contains markup the form doesn't edit. It survives as
+            long as you leave that rule alone — editing one of its fields
+            rebuilds the rule from the fields shown here, and drops the rest.
+          </div>`
+        : nothing}
+
+      ${spec.otherChildren?.length
+        ? html`<div class="note">
+            Also defines
+            ${spec.otherChildren.map((name) => html`<code>${name}</code> `)} —
+            not editable here, kept as-is when you save.
           </div>`
         : nothing}
 
@@ -139,6 +150,7 @@ export class ElementSpecPanel extends LitElement {
                   .specIndex=${this.specIndex}
                   .path=${[i]}
                   .modelOpenState=${this.modelOpenState}
+                  .siblingTypes=${SPEC_RULE_TYPES}
                   @dragstart=${(e: DragEvent) => onDragStart(e, spec.models, i)}
                   @dragover=${(e: DragEvent) => onDragOver(e, spec.models, i)}
                   @dragleave=${(e: DragEvent) => onDragLeave(e)}

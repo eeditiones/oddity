@@ -52,8 +52,13 @@ export interface ElementSpec {
   models: ModelNode[];
   /** Source offset range of the whole `<elementSpec>` (host-side only). */
   range?: { start: number; end: number };
-  /** True when the elementSpec holds children the form does not model. */
+  /** True when a rule inside holds markup the form does not model — and drops. */
   hasUnmodeled?: boolean;
+  /**
+   * Names of the spec's non-rule children (`attList`, `content`, …). The form
+   * doesn't edit them, but they are spliced through unchanged on save.
+   */
+  otherChildren?: string[];
 }
 
 export interface OddMeta {
@@ -137,6 +142,60 @@ export const SCOPES = ["before", "after"];
 
 /** elementSpec modes. */
 export const MODES = ["change", "add"];
+
+/**
+ * What the ODD content model permits on each kind of rule, after
+ * `teipublisher_odds.xsd`. `output`, `useSourceRendition` and the `att.global`
+ * attributes are allowed on all three and so are not listed.
+ */
+export interface RuleSchema {
+  behaviour: boolean;
+  predicate: boolean;
+  cssClass: boolean;
+  /** `pb:mode` */
+  pbMode: boolean;
+  /** `pb:template` */
+  template: boolean;
+  /** `param` / `pb:set-param` */
+  params: boolean;
+  /** How many `<outputRendition>` children are allowed. */
+  renditions: number;
+  /** Which rule types may be nested inside. */
+  nested: ModelType[];
+}
+
+export const RULE_SCHEMA: Record<ModelType, RuleSchema> = {
+  model: {
+    behaviour: true,
+    predicate: true,
+    cssClass: true,
+    pbMode: true,
+    template: true,
+    params: true,
+    renditions: Infinity,
+    nested: [],
+  },
+  modelGrp: {
+    behaviour: false,
+    predicate: false,
+    cssClass: false,
+    pbMode: false,
+    template: false,
+    params: false,
+    renditions: 1,
+    nested: ["model", "modelSequence"],
+  },
+  modelSequence: {
+    behaviour: false,
+    predicate: true,
+    cssClass: false,
+    pbMode: false,
+    template: false,
+    params: false,
+    renditions: 0,
+    nested: ["model"],
+  },
+};
 
 /** In-memory clipboard payload shared across graphical editor webviews. */
 export type OddClipboard =

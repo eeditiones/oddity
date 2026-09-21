@@ -1,6 +1,6 @@
 import * as vscode from "vscode";
 import { parseOdd } from "./oddModel";
-import { serializeElementSpec } from "./oddSerialize";
+import { spliceElementSpec } from "./oddSplice";
 import {
   insertElementSpec,
   insertElementSpecFromClipboard,
@@ -31,8 +31,9 @@ import {
  * editor; it is opened on demand (command / "Open With"), typically beside the
  * source. The form reloads on every document change and when XML validation
  * updates (not only when the panel gains focus). Edits are written back
- * surgically: only the changed `<elementSpec>` range is rewritten, leaving the
- * teiHeader, comments, formatting and any unmodeled content untouched.
+ * surgically: within the changed `<elementSpec>`, only the `ident` / `mode`
+ * attributes and the rule elements are rewritten (see {@link spliceElementSpec}),
+ * so the teiHeader, comments, formatting and unmodeled markup stay as they are.
  */
 export class OddEditorProvider implements vscode.CustomTextEditorProvider {
   public static readonly viewType = "oddTools.graphicalEditor";
@@ -322,11 +323,16 @@ export class OddEditorProvider implements vscode.CustomTextEditorProvider {
       return;
     }
     // Replace from the start of the element's line: the leading whitespace there
-    // becomes the element's indent, so serializeElementSpec (which prefixes its
+    // becomes the element's indent, so spliceElementSpec (which prefixes its
     // first line with that indent) lands exactly, without doubling it.
     const lineStart = text.lastIndexOf("\n", target.range.start - 1) + 1;
     const indent = text.slice(lineStart, target.range.start);
-    const xml = serializeElementSpec(indent, model.indentUnit, spec);
+    const xml = spliceElementSpec(
+      indent,
+      model.indentUnit,
+      spec,
+      text.slice(target.range.start, target.range.end)
+    );
     const current = text.slice(lineStart, target.range.end);
     if (current === xml) {
       return;

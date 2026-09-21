@@ -80,7 +80,7 @@ export function parseOdd(text: string): OddModel {
   };
 }
 
-const MODEL_TYPES = new Set(["model", "modelGrp", "modelSequence"]);
+export const MODEL_TYPES = new Set(["model", "modelGrp", "modelSequence"]);
 const MODELLED_CHILDREN = new Set([
   "param",
   "set-param",
@@ -95,6 +95,7 @@ const MODELLED_CHILDREN = new Set([
 function parseElementSpec(text: string, el: XMLElement): ElementSpec {
   const models: ModelNode[] = [];
   let hasUnmodeled = false;
+  const otherChildren = new Set<string>();
   for (const child of el.subElements) {
     const name = localName(child.name);
     if (MODEL_TYPES.has(name)) {
@@ -104,7 +105,7 @@ function parseElementSpec(text: string, el: XMLElement): ElementSpec {
       }
       models.push(model);
     } else if (name !== "desc") {
-      hasUnmodeled = true;
+      otherChildren.add(name);
     }
   }
   const spec: ElementSpec = {
@@ -119,7 +120,17 @@ function parseElementSpec(text: string, el: XMLElement): ElementSpec {
   if (hasUnmodeled) {
     spec.hasUnmodeled = true;
   }
+  if (otherChildren.size > 0) {
+    spec.otherChildren = [...otherChildren];
+  }
   return spec;
+}
+
+/** The rule elements directly under `el`, in document order. */
+export function parseModels(text: string, el: XMLElement): ModelNode[] {
+  return el.subElements
+    .filter((child) => MODEL_TYPES.has(localName(child.name)))
+    .map((child) => parseModel(text, child, localName(child.name) as ModelType));
 }
 
 function parseModel(
