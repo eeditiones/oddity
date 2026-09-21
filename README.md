@@ -24,11 +24,10 @@ the raw XML tree (`TEI ▸ text ▸ body ▸ schemaSpec ▸ …`), you get:
   - `<moduleRef>` entries (`key`, with `include` / `except` in the detail);
   - `<dataSpec>`, `<macroSpec>`, and `<classSpec>` entries (labelled by `ident`,
     with `mode` / `type` in the detail where relevant);
-  - `<elementSpec>` entries, each with nested `<model>` rules labelled by
-    `output · predicate · behaviour` (parts that are absent are omitted).
-
-Models wrapped in `<modelGrp>` or `<modelSequence>` are flattened into the list,
-inheriting the wrapper's `output` / `predicate` where they don't set their own.
+  - `<elementSpec>` entries, each with nested `<model>` / `<modelGrp>` /
+    `<modelSequence>` rules labelled by `output · predicate · behaviour` (or
+    the wrapper name in place of `behaviour`). Parts that are absent are
+    omitted. Groups and sequences keep their nested models as children.
 
 The generic XML outline is suppressed for `.odd` files (via
 `xml.symbols.filters`) so the two don't compete. Other `.xml` files keep their

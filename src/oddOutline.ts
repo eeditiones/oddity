@@ -9,9 +9,8 @@ import { localName, attr, findElements } from "./xmlUtils";
  * Instead of the generic XML tree, the outline surfaces the ODD-specific
  * structure: `<tagsDecl>` (behaviours, renditions, namespaces) and each
  * `<schemaSpec>` with its module references, data/macro/class/element specs.
- * `<elementSpec>` entries still list nested `<model>` rules, with
- * `<modelGrp>` / `<modelSequence>` wrappers flattened and their `output` /
- * `predicate` inherited where absent.
+ * `<elementSpec>` entries list nested `<model>` / `<modelGrp>` /
+ * `<modelSequence>` rules as a tree.
  */
 export class OddDocumentSymbolProvider implements vscode.DocumentSymbolProvider {
   provideDocumentSymbols(
@@ -205,63 +204,71 @@ export class OddDocumentSymbolProvider implements vscode.DocumentSymbolProvider 
       range,
       nameRange(document, elementSpec, range)
     );
-    symbol.children = this.collectModels(document, elementSpec, {});
+    symbol.children = this.collectRules(document, elementSpec);
     return symbol;
   }
 
-  /**
-   * Walk an element's children collecting `<model>` symbols, descending into
-   * `<modelGrp>` / `<modelSequence>` wrappers and inheriting their context.
-   */
-  private collectModels(
+  /** Direct `<model>` / `<modelGrp>` / `<modelSequence>` children, nested as in the ODD. */
+  private collectRules(
     document: vscode.TextDocument,
-    parent: XMLElement,
-    inherited: { output?: string; predicate?: string }
+    parent: XMLElement
   ): vscode.DocumentSymbol[] {
     const out: vscode.DocumentSymbol[] = [];
     for (const child of parent.subElements) {
       const local = localName(child.name);
-      if (local === "model") {
-        out.push(this.buildModelSymbol(document, child, inherited));
-      } else if (local === "modelGrp" || local === "modelSequence") {
-        const next = {
-          output: attr(child, "output") ?? inherited.output,
-          predicate: attr(child, "predicate") ?? inherited.predicate,
-        };
-        out.push(...this.collectModels(document, child, next));
+      if (local === "model" || local === "modelGrp" || local === "modelSequence") {
+        out.push(this.buildRuleSymbol(document, child, local));
       }
     }
     return out;
   }
 
-  private buildModelSymbol(
+  private buildRuleSymbol(
     document: vscode.TextDocument,
-    model: XMLElement,
-    inherited: { output?: string; predicate?: string }
+    rule: XMLElement,
+    type: "model" | "modelGrp" | "modelSequence"
   ): vscode.DocumentSymbol {
-    const output = attr(model, "output") ?? inherited.output;
-    const predicate = attr(model, "predicate") ?? inherited.predicate;
-    const behaviour = attr(model, "behaviour") ?? "(no behaviour)";
-
-    const parts = [];
-    if (output) {
-      parts.push(output);
-    }
-    if (predicate) {
-      parts.push(predicate);
-    }
-    parts.push(behaviour);
-    const label = parts.join(" · ");
-
-    const range = elementRange(document, model);
-    return new vscode.DocumentSymbol(
-      label,
+    const range = elementRange(document, rule);
+    const symbol = new vscode.DocumentSymbol(
+      ruleLabel(rule, type),
       "",
-      vscode.SymbolKind.Method,
+      ruleKind(type),
       range,
-      nameRange(document, model, range)
+      nameRange(document, rule, range)
     );
+    if (type !== "model") {
+      symbol.children = this.collectRules(document, rule);
+    }
+    return symbol;
   }
+}
+
+function ruleKind(type: "model" | "modelGrp" | "modelSequence"): vscode.SymbolKind {
+  if (type === "modelGrp") {
+    return vscode.SymbolKind.Namespace;
+  }
+  if (type === "modelSequence") {
+    return vscode.SymbolKind.Array;
+  }
+  return vscode.SymbolKind.Method;
+}
+
+/** `output · predicate · behaviour|modelGrp|modelSequence`, omitting empty parts. */
+function ruleLabel(
+  rule: XMLElement,
+  type: "model" | "modelGrp" | "modelSequence"
+): string {
+  const parts: string[] = [];
+  const output = attr(rule, "output");
+  const predicate = attr(rule, "predicate");
+  if (output) {
+    parts.push(output);
+  }
+  if (predicate) {
+    parts.push(predicate);
+  }
+  parts.push(type === "model" ? (attr(rule, "behaviour") ?? "(no behaviour)") : type);
+  return parts.join(" · ");
 }
 
 /** Summary of a `<moduleRef>`'s include/except attributes. */
