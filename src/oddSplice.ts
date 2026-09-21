@@ -7,17 +7,19 @@ import {
   serializeModel,
   serializeModels,
 } from "./oddSerialize";
-import { escapeXmlAttr, localName } from "./xmlUtils";
+import { escapeXmlAttr, innerXml, localName } from "./xmlUtils";
 
 /**
  * Rewrite an existing `<elementSpec>` in place instead of regenerating it.
  *
- * The form owns exactly two things: the `ident` / `mode` attributes and the
- * tree of `model` / `modelGrp` / `modelSequence` rules. Everything else in the
- * element — `attList`, `content`, `classes`, `constraintSpec`, `desc`,
- * `remarks`, comments, and attributes the form doesn't know about — is carried
- * over from `raw` byte for byte. {@link serializeElementSpec} is the whole-cloth
- * counterpart, used when there is no source to preserve (new or pasted specs).
+ * The form owns the `ident` / `mode` attributes, the element's own `<desc>`,
+ * and the tree of `model` / `modelGrp` / `modelSequence` rules. Everything
+ * else — `attList`, `content`, `classes`, `constraintSpec`, `remarks`,
+ * comments, and attributes the form doesn't know about — is carried over from
+ * `raw` byte for byte. An untouched `<desc>` is left as written too, so
+ * phrase-level markup and entity references survive. {@link serializeElementSpec}
+ * is the whole-cloth counterpart, used when there is no source to preserve
+ * (new or pasted specs).
  *
  * Within the run of rules the same idea applies one level down: a rule that
  * still serializes the way its source did is written back from the source, so
@@ -45,16 +47,22 @@ export function spliceElementSpec(
 
   if (root.syntax.isSelfClosing) {
     const tag = applyEdits(raw, attributes);
-    const models = serializeModels(indent + unit, unit, spec.models);
-    if (!models) {
+    const inner = indent + unit;
+    const desc = spec.desc ? `${inner}<desc>${spec.desc}</desc>\n` : "";
+    const models = serializeModels(inner, unit, spec.models);
+    if (!desc && !models) {
       return indent + tag;
     }
-    // Rules need a body, so reopen the tag.
+    // A body is needed for a description or rules, so reopen the tag.
     const open = tag.replace(/\s*\/>$/, ">");
-    return `${indent}${open}\n${models}${indent}</${openName(raw, root)}>`;
+    return `${indent}${open}\n${desc}${models}${indent}</${openName(raw, root)}>`;
   }
 
-  const edits = [...attributes, ...modelEdits(raw, root, indent, unit, spec)];
+  const edits = [
+    ...attributes,
+    ...descEdit(raw, root, indent, unit, spec.desc),
+    ...modelEdits(raw, root, indent, unit, spec),
+  ];
   return indent + applyEdits(raw, edits);
 }
 
@@ -127,6 +135,41 @@ function attributeEdit(
         end: anchor,
         text: ` ${name}="${escapeXmlAttr(value ?? "")}"`,
       };
+}
+
+/**
+ * Edit that brings the element's own `<desc>` in line with the form. An
+ * untouched description is left exactly as written — including the phrase-level
+ * markup and entity references a `<desc>` is allowed to carry.
+ */
+function descEdit(
+  raw: string,
+  root: XMLElement,
+  indent: string,
+  unit: string,
+  desc: string | undefined
+): Edit[] {
+  const bodyStart = root.syntax.openBody!.endOffset + 1;
+  const bodyEnd = root.syntax.closeBody?.startOffset ?? raw.length;
+  const existing = root.subElements.find((c) => localName(c.name) === "desc");
+  const block = desc ? `${indent}${unit}<desc>${desc}</desc>\n` : "";
+
+  if (existing) {
+    if ((innerXml(raw, existing).trim() || undefined) === desc) {
+      return [];
+    }
+    const span = lineSpan(raw, existing.position, bodyStart, bodyEnd);
+    const ownLine = span.start === 0 || raw[span.start - 1] === "\n";
+    return [
+      { ...span, text: ownLine ? block : desc ? `<desc>${desc}</desc>` : "" },
+    ];
+  }
+  if (!desc) {
+    return [];
+  }
+  // `<desc>` heads the content model, so a new one goes at the top of the body.
+  const at = raw[bodyStart] === "\n" ? bodyStart + 1 : bodyStart;
+  return [lineInsert(raw, at, indent, block)];
 }
 
 /** One existing rule, with whatever sits between it and the rule before it. */
@@ -270,14 +313,30 @@ function insertRules(
   bodyEnd: number,
   rules: string
 ): Edit {
-  const at = modelInsertOffset(raw, root, bodyStart, bodyEnd);
+  return lineInsert(
+    raw,
+    modelInsertOffset(raw, root, bodyStart, bodyEnd),
+    indent,
+    rules
+  );
+}
+
+/**
+ * An insertion of whole lines. When the insertion point sits mid-line, a break
+ * is opened for the block and the remainder of that line — typically the
+ * closing tag — is re-indented behind it.
+ */
+function lineInsert(
+  raw: string,
+  at: number,
+  indent: string,
+  block: string
+): Edit {
   if (at > 0 && raw[at - 1] !== "\n") {
-    // Mid-line insertion point: open a line for the rules, and re-indent the
-    // remainder of that line (typically the closing tag) behind them.
     const tail = at < raw.length ? indent : "";
-    return { start: at, end: at, text: `\n${rules}${tail}` };
+    return { start: at, end: at, text: `\n${block}${tail}` };
   }
-  return { start: at, end: at, text: rules };
+  return { start: at, end: at, text: block };
 }
 
 /** Where a first rule goes: after the last preceding child, before `remarks` & co. */

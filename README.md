@@ -77,18 +77,10 @@ written back, and edits in the text editor refresh the form. The left panel list
 every `<elementSpec>` (with add / jump-to-filter). Adding an element uses the
 same inheritance logic as **ODD: Add Element Spec**: click **+** with an empty
 field to pick from the parent ODD, or type an ident to inherit its definition
-when available (otherwise a blank scaffold is inserted). The main panel edits the
-selected spec's `ident`, `mode`, and its tree of `model` / `modelGrp` /
-`modelSequence` rules — output, predicate, behaviour (with a custom fallback),
-CSS class, description, `<pb:template>`, parameters (`param` / `pb:set-param`)
-and output renditions. Predicate and template fields use an embedded CodeMirror.
+when available (otherwise a blank scaffold is inserted).
 
 Edits are written back **surgically**: saving never regenerates the document, or
-even a whole `<elementSpec>`. Schema content the
-form doesn't model (`attList`, `content`, `classes`, `constraintSpec`, …), other
-attributes, indentation and comments all survive byte for byte. The
-panel lists a spec's non-rule children so it is clear what the form isn't
-showing you.
+even a whole `<elementSpec>`.
 
 The form is **schema-aware about what each kind of rule may hold**, so it can't
 be used to build ODD the schema rejects.

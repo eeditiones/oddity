@@ -9,6 +9,8 @@ import {
   hasModelClip,
   onClipChange,
 } from "./clipboard";
+import { validateXmlFragment } from "./templateValidation";
+import "./codemirror";
 import "./model-card";
 
 void ModelCard;
@@ -17,9 +19,10 @@ void ModelCard;
 const SPEC_RULE_TYPES: ModelType[] = ["model", "modelGrp", "modelSequence"];
 
 /**
- * The main panel: one selected elementSpec — its ident and mode, a toolbar, and
- * the list of top-level model cards. Owns the spec's top-level `models` array
- * for add / move / remove / duplicate; persistence flows up via `odd-change`.
+ * The main panel: one selected elementSpec — its ident, mode, description, a
+ * toolbar, and the list of top-level model cards. Owns the spec's top-level
+ * `models` array for add / move / remove / duplicate; persistence flows up via
+ * `odd-change`.
  */
 export class ElementSpecPanel extends LitElement {
   static properties = {
@@ -54,6 +57,31 @@ export class ElementSpecPanel extends LitElement {
     this.dispatchEvent(
       new CustomEvent("odd-change", { bubbles: true, composed: true })
     );
+  }
+
+  /**
+   * The element's own `<desc>`. Edited as markup rather than plain text: a
+   * `<desc>` may carry phrase-level markup such as `<gi>` and `<ref>`, and
+   * flattening it would quietly drop that on the next save.
+   */
+  private descField(spec: ElementSpec): TemplateResult {
+    const error = validateXmlFragment(spec.desc ?? "");
+    return html`
+      <div class="field spec-desc ${error ? "invalid" : ""}">
+        <span>Description</span>
+        <cm-field
+          language="xml"
+          .value=${spec.desc ?? ""}
+          @cm-change=${(e: CustomEvent<string>) => {
+            spec.desc = e.detail || undefined;
+            this.changed();
+          }}
+        ></cm-field>
+        ${error
+          ? html`<div class="field-error" role="alert">${error}</div>`
+          : nothing}
+      </div>
+    `;
   }
 
   render(): TemplateResult {
@@ -137,6 +165,8 @@ export class ElementSpecPanel extends LitElement {
             not editable here, kept as-is when you save.
           </div>`
         : nothing}
+
+      ${this.descField(spec)}
 
       <div class="models">
         ${spec.models.length === 0

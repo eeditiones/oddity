@@ -32,8 +32,9 @@ import {
  * source. The form reloads on every document change and when XML validation
  * updates (not only when the panel gains focus). Edits are written back
  * surgically: within the changed `<elementSpec>`, only the `ident` / `mode`
- * attributes and the rule elements are rewritten (see {@link spliceElementSpec}),
- * so the teiHeader, comments, formatting and unmodeled markup stay as they are.
+ * attributes, the element's own `<desc>`, and the rule elements are rewritten
+ * (see {@link spliceElementSpec}), so the teiHeader, comments, formatting and
+ * unmodeled markup stay as they are.
  */
 export class OddEditorProvider implements vscode.CustomTextEditorProvider {
   public static readonly viewType = "oddTools.graphicalEditor";

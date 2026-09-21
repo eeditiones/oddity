@@ -33,6 +33,7 @@ export interface ModelNode {
   sourcerend?: boolean;
   /** ODD attribute `pb:mode`. */
   mode?: string;
+  /** Inner XML of the rule's `<desc>`, verbatim. */
   desc?: string;
   /** Inner content of `<pb:template>`, verbatim. */
   template?: string;
@@ -47,7 +48,7 @@ export interface ModelNode {
 export interface ElementSpec {
   ident: string;
   mode?: string;
-  /** Element-level `<desc>`, preserved on round-trip. */
+  /** Inner XML of the element-level `<desc>`, verbatim. */
   desc?: string;
   models: ModelNode[];
   /** Source offset range of the whole `<elementSpec>` (host-side only). */

@@ -49,6 +49,29 @@ export function attr(element: XMLElement, key: string): string | undefined {
   return raw !== undefined && raw !== null ? unescapeXmlAttr(raw) : undefined;
 }
 
+/**
+ * Verbatim content between an element's start and end tags. A self-closing
+ * element (`<param .../>`) naturally yields "" since the leading-tag strip
+ * consumes the whole element.
+ */
+export function innerXml(text: string, el: XMLElement): string {
+  if (!el.position) {
+    return "";
+  }
+  const raw = text.slice(el.position.startOffset, el.position.endOffset + 1);
+  return raw.replace(/^<[^>]*>/, "").replace(/<\/[^>]*>\s*$/, "");
+}
+
+/** Inner XML of the first direct child with the given local name, verbatim. */
+export function childInnerXml(
+  text: string,
+  el: XMLElement,
+  name: string
+): string | undefined {
+  const child = el.subElements.find((c) => localName(c.name) === name);
+  return child ? innerXml(text, child) : undefined;
+}
+
 /** Depth-first visit of every element under the given root (inclusive). */
 export function visit(
   root: XMLDocument | XMLElement,

@@ -9,7 +9,7 @@ import {
 } from "./clipboard";
 import { ElementSpecPanel } from "./elementspec-panel";
 import { ModelOpenState, modelPathKey } from "./model-open-state";
-import { validateElementSpecTemplates } from "./templateValidation";
+import { validateElementSpecXml } from "./templateValidation";
 import "./elementspec-panel";
 
 void ElementSpecPanel;
@@ -219,8 +219,8 @@ export class OddEditor extends LitElement {
       this.finishFlushIfReady();
       return;
     }
-    const templateError = validateElementSpecTemplates(spec);
-    if (templateError) {
+    const xmlError = validateElementSpecXml(spec);
+    if (xmlError) {
       this.blockSave(this.flushRequested);
       return;
     }

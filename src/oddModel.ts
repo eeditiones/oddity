@@ -1,6 +1,12 @@
 import { parse } from "@xml-tools/parser";
 import { buildAst, XMLElement } from "@xml-tools/ast";
-import { localName, attr, visit } from "./xmlUtils";
+import {
+  localName,
+  attr,
+  visit,
+  innerXml,
+  childInnerXml,
+} from "./xmlUtils";
 import {
   OddModel,
   ElementSpec,
@@ -111,7 +117,7 @@ function parseElementSpec(text: string, el: XMLElement): ElementSpec {
   const spec: ElementSpec = {
     ident: attr(el, "ident") ?? "",
     mode: attr(el, "mode"),
-    desc: directDesc(el),
+    desc: directDesc(text, el),
     models,
   };
   if (el.position) {
@@ -171,7 +177,7 @@ function parseModel(
   }
 
   const sourcerend = attr(el, "useSourceRendition");
-  const templateRaw = childInner(text, el, "template");
+  const templateRaw = childInnerXml(text, el, "template");
   const template = templateRaw
     ? parseTemplateContent(templateRaw)
     : undefined;
@@ -184,7 +190,7 @@ function parseModel(
     css: attr(el, "cssClass"),
     sourcerend: sourcerend === "true" || sourcerend === "1",
     mode: attr(el, "pb:mode"),
-    desc: directDesc(el),
+    desc: directDesc(text, el),
     template,
     params,
     renditions,
@@ -204,40 +210,19 @@ function isEmptyElement(el: XMLElement): boolean {
   return !el.textContents.some((t) => (t.text ?? "").trim().length > 0);
 }
 
-/** Text of the first direct `<desc>` child, trimmed. */
-function directDesc(el: XMLElement): string | undefined {
+/**
+ * Inner XML of the first direct `<desc>` child, verbatim and trimmed.
+ *
+ * Kept as markup rather than flattened text: a `<desc>` may hold phrase-level
+ * markup (`<gi>`, `<ref>`) and entity references, and TEI Publisher's own ODDs
+ * use both; reading it as text would drop them on the next save.
+ */
+export function directDesc(text: string, el: XMLElement): string | undefined {
   const desc = el.subElements.find((c) => localName(c.name) === "desc");
   if (!desc) {
     return undefined;
   }
-  const text = desc.textContents.map((t) => t.text).join("").trim();
-  return text || undefined;
-}
-
-/** Inner content of the first child with the given local name, verbatim. */
-function childInner(
-  text: string,
-  el: XMLElement,
-  name: string
-): string | undefined {
-  const child = el.subElements.find((c) => localName(c.name) === name);
-  if (!child) {
-    return undefined;
-  }
-  return innerXml(text, child);
-}
-
-/**
- * Verbatim content between an element's start and end tags. A self-closing
- * element (`<param .../>`) naturally yields "" since the leading-tag strip
- * consumes the whole element.
- */
-function innerXml(text: string, el: XMLElement): string {
-  if (!el.position) {
-    return "";
-  }
-  const raw = text.slice(el.position.startOffset, el.position.endOffset + 1);
-  return raw.replace(/^<[^>]*>/, "").replace(/<\/[^>]*>\s*$/, "");
+  return innerXml(text, desc).trim() || undefined;
 }
 
 function firstTitle(ast: any, type: "short" | undefined): string | undefined {

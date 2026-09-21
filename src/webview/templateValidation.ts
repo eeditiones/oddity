@@ -1,7 +1,12 @@
 import { ElementSpec, ModelNode, isXmlTemplateOutput } from "../oddTypes";
 
-/** Verify a web/print/epub template is well-formed XML. */
-export function validateTemplateXml(content: string): string | undefined {
+/**
+ * Verify a fragment is well-formed XML — a web/print/epub template, or the
+ * inner markup of a `<desc>`. Returns a message, or undefined when it parses.
+ */
+export const validateTemplateXml = validateXmlFragment;
+
+export function validateXmlFragment(content: string): string | undefined {
   const trimmed = content.trim();
   if (!trimmed) {
     return undefined;
@@ -48,7 +53,7 @@ function formatParserError(err: Element): string {
   if (stripped) {
     return stripped;
   }
-  return "Template is not well-formed XML";
+  return "Not well-formed XML";
 }
 
 function walkModels(
@@ -56,11 +61,9 @@ function walkModels(
   onModel: (model: ModelNode) => string | undefined
 ): string | undefined {
   for (const model of models) {
-    if (model.template && isXmlTemplateOutput(model.output)) {
-      const err = onModel(model);
-      if (err) {
-        return err;
-      }
+    const err = onModel(model);
+    if (err) {
+      return err;
     }
     const nested = walkModels(model.models, onModel);
     if (nested) {
@@ -70,11 +73,23 @@ function walkModels(
   return undefined;
 }
 
-/** First template XML error anywhere in an elementSpec, if any. */
-export function validateElementSpecTemplates(
-  spec: ElementSpec
-): string | undefined {
-  return walkModels(spec.models, (model) =>
-    validateTemplateXml(model.template ?? "")
-  );
+/**
+ * First XML error anywhere in an elementSpec — in its description, or in any
+ * rule's description or template. Saving is held back until it is fixed, so
+ * the form can never write markup that would break the document.
+ */
+export function validateElementSpecXml(spec: ElementSpec): string | undefined {
+  const desc = validateXmlFragment(spec.desc ?? "");
+  if (desc) {
+    return `Description: ${desc}`;
+  }
+  return walkModels(spec.models, (model) => {
+    const ruleDesc = validateXmlFragment(model.desc ?? "");
+    if (ruleDesc) {
+      return `Description: ${ruleDesc}`;
+    }
+    return isXmlTemplateOutput(model.output)
+      ? validateXmlFragment(model.template ?? "")
+      : undefined;
+  });
 }
