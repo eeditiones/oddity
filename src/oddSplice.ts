@@ -1,6 +1,6 @@
 import { parse } from "@xml-tools/parser";
 import { buildAst, XMLElement } from "@xml-tools/ast";
-import { MODEL_TYPES, parseModels } from "./oddModel";
+import { MODEL_TYPES, collapseSpace, parseModels } from "./oddModel";
 import { ElementSpec } from "./oddTypes";
 import {
   serializeElementSpec,
@@ -155,7 +155,7 @@ function descEdit(
   const block = desc ? `${indent}${unit}<desc>${desc}</desc>\n` : "";
 
   if (existing) {
-    if ((innerXml(raw, existing).trim() || undefined) === desc) {
+    if (collapseSpace(innerXml(raw, existing)) === desc) {
       return [];
     }
     const span = lineSpan(raw, existing.position, bodyStart, bodyEnd);

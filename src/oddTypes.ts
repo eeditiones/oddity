@@ -219,6 +219,8 @@ export type HostToWebview =
   | { type: "selectIdent"; ident?: string; index: number; modelPath?: number[] }
   /** Flush debounced field edits before the document is saved to disk. */
   | { type: "flush" }
+  /** The `oddTools.editorFontSize` setting changed; `css` is the new size. */
+  | { type: "fontSize"; css: string }
   /** Host finished applying the latest `updateElementSpec`. */
   | { type: "editApplied"; generation: number };
 

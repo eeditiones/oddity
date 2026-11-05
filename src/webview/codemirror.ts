@@ -1,7 +1,14 @@
 import { LitElement, html } from "lit";
 import { EditorView, keymap, showPanel, Panel } from "@codemirror/view";
-import { EditorState, EditorSelection, StateEffect, StateField } from "@codemirror/state";
-import { defaultKeymap, history, historyKeymap } from "@codemirror/commands";
+import {
+  Compartment,
+  EditorState,
+  EditorSelection,
+  Extension,
+  StateEffect,
+  StateField,
+} from "@codemirror/state";
+import { defaultKeymap, history, historyKeymap, indentWithTab } from "@codemirror/commands";
 import { xml } from "@codemirror/lang-xml";
 import { css } from "@codemirror/lang-css";
 import { xQuery } from "@codemirror/legacy-modes/mode/xquery";
@@ -104,13 +111,18 @@ const vscodeTheme = EditorView.theme({
     color: "var(--vscode-input-foreground)",
     backgroundColor: "var(--vscode-input-background)",
     border: "1px solid var(--vscode-input-border, transparent)",
-    borderRadius: "2px",
-    fontSize: "calc(var(--vscode-editor-font-size, 13px) - 1px)",
+    borderRadius: "var(--radius, 2px)",
+    // Same size, line height and padding as the form's plain inputs, so a
+    // one-line field lines up with the inputs next to it
+    fontSize: "var(--oddity-font-size, var(--vscode-editor-font-size, 13px))",
   },
+  ".cm-scroller": { lineHeight: "normal" },
   ".cm-content": {
     fontFamily: "var(--vscode-editor-font-family, monospace)",
     caretColor: "var(--vscode-editorCursor-foreground)",
+    padding: "3px 0",
   },
+  ".cm-line": { padding: "0 6px" },
   "&.cm-focused": { outline: "1px solid var(--vscode-focusBorder)" },
   ".cm-cursor": { borderLeftColor: "var(--vscode-editorCursor-foreground)" },
   ".cm-activeLine": { backgroundColor: "transparent" },
@@ -198,6 +210,20 @@ function createEncloseWithPanel(view: EditorView): Panel {
   return { top: false, dom, mount: () => setTimeout(() => input.focus(), 50) };
 }
 
+/** Highlighting for a field's language. */
+function languageSupport(language: CmField["language"]): Extension {
+  switch (language) {
+    case "xml":
+      return xml();
+    case "css":
+      return css();
+    case "xquery":
+      return StreamLanguage.define(xQuery);
+    default:
+      return [];
+  }
+}
+
 /**
  * A single-value CodeMirror field as a custom element. Set `value` and
  * `language` ("xml" | "css" | "xquery" | "text"); emits a `cm-change` event
@@ -212,6 +238,7 @@ export class CmField extends LitElement {
   declare value: string;
   declare language: "xml" | "css" | "xquery" | "text";
   private view?: EditorView;
+  private languageConf = new Compartment();
   /** Suppress cm-change while syncing the document from the value property. */
   private syncing = false;
 
@@ -229,7 +256,7 @@ export class CmField extends LitElement {
     const host = this.renderRoot.querySelector(".cm-host") as HTMLElement;
     const extensions = [
       history(),
-      keymap.of([...defaultKeymap, ...historyKeymap]),
+      keymap.of([...defaultKeymap, ...historyKeymap, indentWithTab]),
       syntaxHighlighting(vscodeHighlightStyle, { fallback: true }),
       bracketMatching(),
       EditorView.lineWrapping,
@@ -247,14 +274,8 @@ export class CmField extends LitElement {
           );
         }
       }),
+      this.languageConf.of(languageSupport(this.language)),
     ];
-    if (this.language === "xml") {
-      extensions.push(xml());
-    } else if (this.language === "css") {
-      extensions.push(css());
-    } else if (this.language === "xquery") {
-      extensions.push(StreamLanguage.define(xQuery));
-    }
     this.view = new EditorView({
       parent: host,
       state: EditorState.create({ doc: this.value ?? "", extensions }),
@@ -262,9 +283,19 @@ export class CmField extends LitElement {
   }
 
   updated(changed: Map<string, unknown>) {
+    // A rule's output can change from an XML format to a plain-text one
+    if (changed.has("language") && changed.get("language") !== undefined && this.view) {
+      this.view.dispatch({
+        effects: this.languageConf.reconfigure(languageSupport(this.language)),
+      });
+    }
     if (changed.has("value") && this.view) {
       const current = this.view.state.doc.toString();
-      if (current !== (this.value ?? "")) {
+      // The ODD is re-read after each save and parsed values are trimmed; don't
+      // wipe a trailing newline or space the user is in the middle of typing.
+      const typing =
+        this.view.hasFocus && current.trim() === (this.value ?? "").trim();
+      if (!typing && current !== (this.value ?? "")) {
         this.syncing = true;
         try {
           this.view.dispatch({

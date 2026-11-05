@@ -211,18 +211,24 @@ function isEmptyElement(el: XMLElement): boolean {
 }
 
 /**
- * Inner XML of the first direct `<desc>` child, verbatim and trimmed.
+ * Inner XML of the first direct `<desc>` child, with its whitespace collapsed.
  *
  * Kept as markup rather than flattened text: a `<desc>` may hold phrase-level
  * markup (`<gi>`, `<ref>`) and entity references, and TEI Publisher's own ODDs
- * use both; reading it as text would drop them on the next save.
+ * use both; reading it as text would drop them on the next save. Line breaks
+ * and indentation in a `<desc>` only lay out the source, so they are dropped.
  */
 export function directDesc(text: string, el: XMLElement): string | undefined {
   const desc = el.subElements.find((c) => localName(c.name) === "desc");
   if (!desc) {
     return undefined;
   }
-  return innerXml(text, desc).trim() || undefined;
+  return collapseSpace(innerXml(text, desc));
+}
+
+/** Runs of whitespace as one space, trimmed; undefined when nothing is left. */
+export function collapseSpace(s: string): string | undefined {
+  return s.replace(/\s+/g, " ").trim() || undefined;
 }
 
 function firstTitle(ast: any, type: "short" | undefined): string | undefined {

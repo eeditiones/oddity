@@ -80,7 +80,7 @@ export async function insertElementSpec(
       model.elementSpecIndent
     );
     const edit = new vscode.WorkspaceEdit();
-    edit.insert(document.uri, position, `${block}\n`);
+    edit.insert(document.uri, position, `${lineBreakBefore(text, offset)}${block}\n`);
     await vscode.workspace.applyEdit(edit);
     return { ident: choice.ident, offset };
   }
@@ -88,7 +88,7 @@ export async function insertElementSpec(
   const spec = { ident: choice.ident, mode: "change", models: [] };
   const xml = serializeElementSpec(model.elementSpecIndent, model.indentUnit, spec);
   const edit = new vscode.WorkspaceEdit();
-  edit.insert(document.uri, position, `${xml}\n`);
+  edit.insert(document.uri, position, `${lineBreakBefore(text, offset)}${xml}\n`);
   await vscode.workspace.applyEdit(edit);
   return { ident: choice.ident, offset };
 }
@@ -120,7 +120,7 @@ export async function insertElementSpecFromClipboard(
     copySpec
   );
   const edit = new vscode.WorkspaceEdit();
-  edit.insert(document.uri, position, `${xml}\n`);
+  edit.insert(document.uri, position, `${lineBreakBefore(text, offset)}${xml}\n`);
   await vscode.workspace.applyEdit(edit);
   return { ident, offset };
 }
@@ -183,15 +183,21 @@ export async function insertElementSpecSnippet(
       parentIndent,
       model.elementSpecIndent
     );
+    const lead = lineBreakBefore(text, offset);
     const edit = new vscode.WorkspaceEdit();
-    edit.insert(document.uri, position, `${block}\n`);
+    edit.insert(document.uri, position, `${lead}${block}\n`);
     await vscode.workspace.applyEdit(edit);
-    revealInserted(editor, position, block);
+    revealInserted(editor, position.translate(lead ? 1 : 0, 0).with({ character: 0 }), block);
     return { ident: choice.ident, offset };
   }
 
   await editor.insertSnippet(
-    newSpecSnippet(model.elementSpecIndent, model.indentUnit, choice.ident),
+    newSpecSnippet(
+      model.elementSpecIndent,
+      model.indentUnit,
+      choice.ident,
+      lineBreakBefore(text, offset)
+    ),
     position
   );
   revealAt(editor, position);
@@ -345,7 +351,17 @@ export function schemaSpecInsertionOffset(
     }
   }
 
-  return lineStartOffset(text, model.schemaSpecBodyEnd!);
+  // On the line above `</schemaSpec>` when the closing tag starts its line;
+  // otherwise right before it (see lineBreakBefore), so the new spec never
+  // lands inside an elementSpec that ends on the same line.
+  const end = model.schemaSpecBodyEnd!;
+  const lineStart = lineStartOffset(text, end);
+  return /^[ \t]*$/.test(text.slice(lineStart, end)) ? lineStart : end;
+}
+
+/** A newline to put in front of an insertion that would otherwise start mid-line. */
+export function lineBreakBefore(text: string, offset: number): string {
+  return offset > 0 && text[offset - 1] !== "\n" ? "\n" : "";
 }
 
 /** Byte offset for inserting on the line after an element's closing tag. */
@@ -405,11 +421,13 @@ export function reindentRaw(
 export function newSpecSnippet(
   indent: string,
   unit: string,
-  ident: string
+  ident: string,
+  lead = ""
 ): vscode.SnippetString {
   const id = escapeSnippet(ident);
   const behaviours = BEHAVIOURS.join(",");
   return new vscode.SnippetString(
+    lead +
     [
       `${indent}<elementSpec ident="${id}" mode="\${1|change,add,delete,replace|}">`,
       `${indent}${unit}<model\${2: predicate="\${3:@type}"} behaviour="\${4|${behaviours}|}">`,

@@ -18,7 +18,7 @@ import {
 import "./codemirror";
 import type { CmField } from "./codemirror";
 import { ModelOpenState, modelPathKey } from "./model-open-state";
-import { validateTemplateXml } from "./templateValidation";
+import { validateTemplateXml, validateXmlFragment } from "./templateValidation";
 
 const CUSTOM = "__custom__";
 
@@ -203,7 +203,7 @@ export class ModelCard extends LitElement {
           </label>
         </div>
 
-        ${this.text("Description", m.desc ?? "", (v) => (m.desc = v || undefined))}
+        ${this.descField(m)}
 
         ${this.gated(allow.predicate, !!m.predicate, () => html`
           <div class="field">
@@ -320,21 +320,23 @@ export class ModelCard extends LitElement {
         <span>
           Template
           <span class="tmpl-tools">
-            <button
-              type="button"
-              title="Select enclosing element"
-              @click=${() => cmField()?.selectElement()}
-            >&lt;|&gt;</button>
-            <button
-              type="button"
-              title="Enclose selection in a new element"
-              @click=${() => cmField()?.encloseWith()}
-            >&lt;...&gt;</button>
-            <button
-              type="button"
-              title="Remove enclosing tags"
-              @click=${() => cmField()?.removeEnclosing()}
-            >&lt;X&gt;</button>
+            ${xmlOutput
+              ? html`<button
+                    type="button"
+                    title="Select enclosing element"
+                    @click=${() => cmField()?.selectElement()}
+                  >&lt;|&gt;</button>
+                  <button
+                    type="button"
+                    title="Enclose selection in a new element"
+                    @click=${() => cmField()?.encloseWith()}
+                  >&lt;...&gt;</button>
+                  <button
+                    type="button"
+                    title="Remove enclosing tags"
+                    @click=${() => cmField()?.removeEnclosing()}
+                  >&lt;X&gt;</button>`
+              : nothing}
             <button
               type="button"
               title="Insert content placeholder"
@@ -534,6 +536,27 @@ export class ModelCard extends LitElement {
   }
 
   // --- small field helpers -------------------------------------------------
+
+  /** The rule's `<desc>`, edited as markup like the element's own description. */
+  private descField(m: ModelNode): TemplateResult {
+    const error = validateXmlFragment(m.desc ?? "");
+    return html`
+      <div class="field ${error ? "invalid" : ""}">
+        <span>Description</span>
+        <cm-field
+          language="xml"
+          .value=${m.desc ?? ""}
+          @cm-change=${(e: CustomEvent<string>) => {
+            m.desc = e.detail || undefined;
+            this.changed();
+          }}
+        ></cm-field>
+        ${error
+          ? html`<div class="field-error" role="alert">${error}</div>`
+          : nothing}
+      </div>
+    `;
+  }
 
   private text(
     label: string,

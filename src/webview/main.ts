@@ -14,6 +14,13 @@ function isEditableTarget(e: Event): boolean {
   });
 }
 
+// The host sends the new font size when the setting changes.
+window.addEventListener("message", (e: MessageEvent) => {
+  if (e.data?.type === "fontSize" && typeof e.data.css === "string") {
+    document.documentElement.style.setProperty("--oddity-font-size", e.data.css);
+  }
+});
+
 // Cmd/Ctrl+F on the form opens the elementSpec picker; in CodeMirror/inputs the
 // shortcut is left to VS Code / the embedded editor.
 window.addEventListener("keydown", (e) => {

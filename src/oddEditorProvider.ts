@@ -205,7 +205,14 @@ export class OddEditorProvider implements vscode.CustomTextEditorProvider {
       }
     };
 
+    const configSub = vscode.workspace.onDidChangeConfiguration((e) => {
+      if (e.affectsConfiguration("oddTools.editorFontSize")) {
+        panel.webview.postMessage({ type: "fontSize", css: fontSizeCss() });
+      }
+    });
+
     panel.onDidDispose(() => {
+      configSub.dispose();
       changeSub.dispose();
       diagSub.dispose();
       msgSub.dispose();
@@ -323,23 +330,23 @@ export class OddEditorProvider implements vscode.CustomTextEditorProvider {
     if (!target?.range) {
       return;
     }
-    // Replace from the start of the element's line: the leading whitespace there
-    // becomes the element's indent, so spliceElementSpec (which prefixes its
-    // first line with that indent) lands exactly, without doubling it.
-    const lineStart = text.lastIndexOf("\n", target.range.start - 1) + 1;
-    const indent = text.slice(lineStart, target.range.start);
+    // spliceElementSpec prefixes its result with the line's indent. Only the
+    // leading whitespace of the line counts as indent: when other markup
+    // precedes the spec on its line, that markup is kept and the prefix dropped.
+    const start = target.range.start;
+    const lineStart = text.lastIndexOf("\n", start - 1) + 1;
+    const indent = (/^[ \t]*/.exec(text.slice(lineStart, start)) ?? [""])[0];
     const xml = spliceElementSpec(
       indent,
       model.indentUnit,
       spec,
-      text.slice(target.range.start, target.range.end)
-    );
-    const current = text.slice(lineStart, target.range.end);
-    if (current === xml) {
+      text.slice(start, target.range.end)
+    ).slice(indent.length);
+    if (text.slice(start, target.range.end) === xml) {
       return;
     }
     const range = new vscode.Range(
-      document.positionAt(lineStart),
+      document.positionAt(start),
       document.positionAt(target.range.end)
     );
     await this.applyEdit((b) => b.replace(document.uri, range, xml));
@@ -373,10 +380,13 @@ export class OddEditorProvider implements vscode.CustomTextEditorProvider {
     if (!target?.range) {
       return;
     }
-    // Swallow the spec's own line indentation and the trailing newline.
-    const start = text.lastIndexOf("\n", target.range.start - 1) + 1;
+    // A spec on lines of its own goes with its indentation and trailing
+    // newline; one sharing its line with other markup leaves that markup alone.
+    const lineStart = text.lastIndexOf("\n", target.range.start - 1) + 1;
+    const ownLine = /^[ \t]*$/.test(text.slice(lineStart, target.range.start));
+    const start = ownLine ? lineStart : target.range.start;
     let end = target.range.end;
-    if (text[end] === "\n") {
+    if (ownLine && text[end] === "\n") {
       end += 1;
     }
     const range = new vscode.Range(
@@ -424,7 +434,7 @@ export class OddEditorProvider implements vscode.CustomTextEditorProvider {
     ].join("; ");
 
     return `<!DOCTYPE html>
-<html lang="en">
+<html lang="en" style="--oddity-font-size: ${fontSizeCss()}">
 <head>
   <meta charset="UTF-8" />
   <meta http-equiv="Content-Security-Policy" content="${csp}" />
@@ -438,6 +448,17 @@ export class OddEditorProvider implements vscode.CustomTextEditorProvider {
 </body>
 </html>`;
   }
+}
+
+/**
+ * Font size for the form's inputs and code fields: the `oddTools.editorFontSize`
+ * setting, or the VS Code editor font size when it is 0 or unset.
+ */
+function fontSizeCss(): string {
+  const size = vscode.workspace
+    .getConfiguration("oddTools")
+    .get<number>("editorFontSize", 0);
+  return size > 0 ? `${size}px` : "var(--vscode-editor-font-size, 13px)";
 }
 
 /** Insert, replace, or (when value is empty) remove an attribute in a start tag. */

@@ -83,10 +83,9 @@ export function serializeModel(indent: string, unit: string, model: ModelNode): 
 }
 
 function serializeParam(indent: string, param: Param): string {
-  if (!param.name) {
-    return "";
-  }
-  const name = serAttr("name", param.name);
+  // A freshly added parameter has no name yet. It must still be written out:
+  // the editor re-parses the source after each save and would drop it.
+  const name = ` name="${escapeXmlAttr(param.name)}"`;
   const value = serXPathAttr("value", param.value);
   return param.set
     ? `${indent}<pb:set-param xmlns=""${name}${value}/>\n`

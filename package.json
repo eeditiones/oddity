@@ -168,6 +168,12 @@
           "type": "boolean",
           "default": true,
           "markdownDescription": "Automatically bind the bundled `teipublisher_odds.xsd` schema to `.odd` files (via `xml.fileAssociations`) when they do not already reference a resolvable schema through an `xml-model` processing instruction."
+        },
+        "oddTools.editorFontSize": {
+          "type": "number",
+          "default": 0,
+          "minimum": 0,
+          "markdownDescription": "Font size in pixels for the input fields and code fields of the graphical ODD editor. `0` uses `#editor.fontSize#`."
         }
       }
     },
