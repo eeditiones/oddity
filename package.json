@@ -97,6 +97,18 @@
         "command": "oddity.opmRestart",
         "title": "Restart opm Preview Process",
         "category": "opm"
+      },
+      {
+        "command": "oddity.opmMaximize",
+        "title": "Maximize Preview",
+        "category": "opm",
+        "icon": "$(screen-full)"
+      },
+      {
+        "command": "oddity.opmRestore",
+        "title": "Restore Editor Layout",
+        "category": "opm",
+        "icon": "$(screen-normal)"
       }
     ],
     "keybindings": [
@@ -122,6 +134,16 @@
         {
           "command": "oddity.opmPreview",
           "when": "resourceExtname == .xml && oddity.inOpmProject",
+          "group": "navigation"
+        },
+        {
+          "command": "oddity.opmMaximize",
+          "when": "activeWebviewPanelId == oddity.opmPreview && !editorPartMaximizedEditorGroup",
+          "group": "navigation"
+        },
+        {
+          "command": "oddity.opmRestore",
+          "when": "activeWebviewPanelId == oddity.opmPreview && editorPartMaximizedEditorGroup",
           "group": "navigation"
         }
       ],
@@ -160,6 +182,14 @@
         }
       ],
       "commandPalette": [
+        {
+          "command": "oddity.opmMaximize",
+          "when": "false"
+        },
+        {
+          "command": "oddity.opmRestore",
+          "when": "false"
+        },
         {
           "command": "oddity.openGraphicalEditor",
           "when": "resourceExtname == .odd"
@@ -212,7 +242,7 @@
         },
         "oddity.opm.defaultMode": {
           "type": "string",
-          "enum": ["web", "print", "markdown"],
+          "enum": ["web", "print", "markdown", "chunk"],
           "default": "web",
           "markdownDescription": "Output mode a new opm preview starts with."
         }

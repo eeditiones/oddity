@@ -125,6 +125,11 @@ keeps following the preview.
 The preview follows your typing without saving, and refreshes whenever a file
 of the project (the ODD, CSS, templates, `opm.toml`) is saved.
 
+The **chunk** mode shows the pages `opm chunk` writes for the file, following
+the project's `[chunking]` settings, and lets you browse between them. It works
+from the saved file, so it refreshes when you save; the page you are reading
+stays open across refreshes.
+
 It needs opm installed (`uv tool install open-processing-model`); if it is
 missing, ODDity offers to install it. ODDity looks for `opm` on the PATH and in
 `~/.local/bin`; set `oddity.opm.path`, or `oddity.opm.python` for an

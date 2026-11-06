@@ -9,6 +9,9 @@
 #            "text": "<TEI …", "mode": "web"}
 # Reply:    {"id": 1, "ok": true, "output": "<html…", "assets": {"name": "/abs/path"}}
 #       or  {"id": 1, "ok": false, "error": "…", "traceback": "…"}
+#
+# Mode "chunk" takes "out" (a directory) instead of using "text", and replies
+# {"id": 1, "ok": true, "dir": "/out", "landing": "a.xml/001.html"}.
 import json
 import sys
 import traceback
@@ -86,6 +89,26 @@ def _transform(req: dict) -> dict:
     return {'ok': True, 'output': output, 'assets': _assets(project, mode)}
 
 
+def _chunk(req: dict) -> dict:
+    """Chunk the saved file into req['out'], as `opm chunk` does.
+
+    `chunk` reads the file from disk and names the pages after it, so unsaved
+    text cannot be chunked. Returns the page to open first: the document's
+    first page rather than the collection index.
+    """
+    root = Path(req['root'])
+    file = Path(req['file'])
+    out = Path(req['out'])
+    _use_project(root)
+    project = _project(root)
+    if not project.config.chunking:
+        raise ValueError('This project has no [chunking] section in opm.toml, so there is nothing to chunk.')
+    project.chunk(file, format='html', output_dir=out, overwrite=True)
+    pages = sorted(p for p in (out / file.name).glob('*.html') if p.name != 'browse.html')
+    landing = pages[0] if pages else out / 'index.html'
+    return {'ok': True, 'dir': str(out), 'landing': landing.relative_to(out).as_posix()}
+
+
 def main() -> None:
     for line in sys.stdin:
         line = line.strip()
@@ -94,7 +117,7 @@ def main() -> None:
         req: dict = {}
         try:
             req = json.loads(line)
-            reply = _transform(req)
+            reply = _chunk(req) if req.get('mode') == 'chunk' else _transform(req)
         except Exception as e:
             reply = {'ok': False, 'error': f'{type(e).__name__}: {e}', 'traceback': traceback.format_exc()}
         reply['id'] = req.get('id')

@@ -5,14 +5,24 @@ import { AddressInfo } from "net";
 import * as path from "path";
 import * as vscode from "vscode";
 
-/** One preview's current page and the files it may link. */
+/**
+ * One preview's current output and the files it may link: either a single
+ * page (`html`, with its `assets`) or a folder of pages written by a chunk run
+ * (`dir`, whose HTML pages pass through `page` on the way out).
+ */
 export interface PreviewSite {
-  html: string;
+  html?: string;
   /** assets/<name> → file or folder, as `opm transform -o` copies them. */
-  assets: Record<string, string>;
+  assets?: Record<string, string>;
+  /** Folder of a chunk run's pages, served as the site's root. */
+  dir?: string;
+  /** Page of `dir` to open first. */
+  landing?: string;
+  /** Applied to every HTML page served from `dir`. */
+  page?: (html: string) => string;
   /** Folder of the XML file: other relative links resolve against it. */
   docDir: string;
-  /** Project root: nothing outside it is served. */
+  /** Project root: nothing outside it is served, except assets and `dir`. */
   root: string;
 }
 
@@ -60,7 +70,8 @@ export class PreviewServer implements vscode.Disposable {
   async publish(id: string, site: PreviewSite): Promise<vscode.Uri> {
     this.sites.set(id, site);
     const base = await this.start();
-    return vscode.Uri.parse(`${base}/${this.token}/p/${id}/index.html`);
+    const page = site.dir ? site.landing ?? "index.html" : "index.html";
+    return vscode.Uri.parse(`${base}/${this.token}/p/${id}/${encodeURI(page)}`);
   }
 
   /** Path of the bundled Paged.js polyfill on this server. */
@@ -102,6 +113,15 @@ export class PreviewServer implements vscode.Disposable {
     const url = new URL(req.url ?? "/", "http://localhost");
     const parts = url.pathname.split("/").slice(1).map(decodeURIComponent);
     if (parts[0] !== this.token) {
+      // A link from the site root (`/people/x.html`) on one of our pages: the
+      // root is that preview's output folder, as with `opm serve`
+      const from = new URL(req.headers.referer ?? "/", "http://localhost").pathname;
+      const site = new RegExp(`^/${this.token}/p/([0-9a-f]+)/`).exec(from);
+      if (site && this.sites.has(site[1])) {
+        res.writeHead(302, { Location: `/${this.token}/p/${site[1]}${url.pathname}${url.search}` });
+        res.end();
+        return;
+      }
       return notFound(res);
     }
     if (parts[1] === "_oddity" && parts[2] === "paged.polyfill.min.js") {
@@ -112,13 +132,27 @@ export class PreviewServer implements vscode.Disposable {
       return notFound(res);
     }
     const rest = parts.slice(3);
-    if (rest.length === 1 && rest[0] === "index.html") {
+    if (site.html !== undefined && rest.length === 1 && rest[0] === "index.html") {
       res.writeHead(200, { "Content-Type": TYPES[".html"], "Cache-Control": "no-store" });
       res.end(site.html);
       return;
     }
+    if (site.dir) {
+      const file = path.join(site.dir, ...rest);
+      if (inside(file, site.dir) && isFile(file)) {
+        return /\.html?$/i.test(file) && site.page
+          ? this.sendPage(res, file, site.page)
+          : this.sendFile(res, file);
+      }
+      // A page the last run no longer wrote (fewer chunks now): its first page
+      if (/\.html?$/i.test(file) && site.landing) {
+        res.writeHead(302, { Location: `/${this.token}/p/${parts[2]}/${encodeURI(site.landing)}` });
+        res.end();
+        return;
+      }
+    }
     // An asset may live anywhere opm.toml points, but never above its own entry
-    const asset = rest[0] === "assets" && rest[1] ? site.assets[rest[1]] : undefined;
+    const asset = rest[0] === "assets" && rest[1] ? site.assets?.[rest[1]] : undefined;
     const [base, file] = asset
       ? [asset, path.join(asset, ...rest.slice(2))]
       : [site.root, path.join(site.docDir, ...rest)];
@@ -126,6 +160,16 @@ export class PreviewServer implements vscode.Disposable {
       return notFound(res);
     }
     this.sendFile(res, file);
+  }
+
+  private sendPage(res: http.ServerResponse, file: string, page: (html: string) => string): void {
+    fs.readFile(file, "utf8", (err, html) => {
+      if (err) {
+        return notFound(res);
+      }
+      res.writeHead(200, { "Content-Type": TYPES[".html"], "Cache-Control": "no-store" });
+      res.end(page(html));
+    });
   }
 
   private sendFile(res: http.ServerResponse, file: string): void {
@@ -139,6 +183,14 @@ export class PreviewServer implements vscode.Disposable {
       });
       fs.createReadStream(file).pipe(res);
     });
+  }
+}
+
+function isFile(file: string): boolean {
+  try {
+    return fs.statSync(file).isFile();
+  } catch {
+    return false;
   }
 }
 

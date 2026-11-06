@@ -2,7 +2,7 @@ import { Marked } from "marked";
 import markedFootnote from "marked-footnote";
 
 /** Output modes the preview renders. */
-export const PREVIEW_MODES = ["web", "print", "markdown"] as const;
+export const PREVIEW_MODES = ["web", "print", "markdown", "chunk"] as const;
 export type PreviewMode = (typeof PREVIEW_MODES)[number];
 export const isPreviewMode = (m: unknown): m is PreviewMode =>
   PREVIEW_MODES.includes(m as PreviewMode);
@@ -27,6 +27,15 @@ export function previewPage(mode: PreviewMode, output: string, pagedJs: string):
   }
 }
 
+/**
+ * A page of a chunk run, on its way to the preview frame: keeps its scroll
+ * position and tells the panel which page is showing, so a refresh reloads
+ * that page instead of going back to the first.
+ */
+export function chunkPage(html: string): string {
+  return inject(html, SCROLL_KEEPER + READY);
+}
+
 const markdown = new Marked().use(markedFootnote());
 
 /** Put scripts at the end of the body (or document). */
@@ -41,21 +50,23 @@ function inject(html: string, scripts: string): string {
 }
 
 /**
- * Remember the scroll position in sessionStorage (the frame's origin is the
- * preview server, so it survives the reload) and restore it after a refresh.
+ * Remember each page's scroll position in sessionStorage (the frame's origin
+ * is the preview server, so it survives the reload) and restore it after a
+ * refresh.
  */
 const SCROLL_FN = /* js */ `
 window.__oddityScroll = {
   restore: function () {
+    var key = 'oddity-scroll:' + location.pathname;
     try {
-      var y = +sessionStorage.getItem('oddity-scroll') || 0;
+      var y = +sessionStorage.getItem(key) || 0;
       if (y) window.scrollTo(0, y);
     } catch (e) {}
     var t;
     window.addEventListener('scroll', function () {
       clearTimeout(t);
       t = setTimeout(function () {
-        try { sessionStorage.setItem('oddity-scroll', String(window.scrollY)); } catch (e) {}
+        try { sessionStorage.setItem(key, String(window.scrollY)); } catch (e) {}
       }, 100);
     }, { passive: true });
   }
@@ -63,7 +74,7 @@ window.__oddityScroll = {
 `;
 
 const SCROLL_KEEPER = `<script>${SCROLL_FN}window.__oddityScroll.restore();</script>`;
-const READY = `<script>parent.postMessage({oddityPreview:'done'},'*');</script>`;
+const READY = `<script>parent.postMessage({oddityPreview:'done',path:location.pathname},'*');</script>`;
 
 /** Sheet look for the paginated print preview, from OPM Studio. */
 const PAGED_CSS = /* css */ `

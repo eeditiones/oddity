@@ -4,15 +4,15 @@ import * as readline from "readline";
 import * as vscode from "vscode";
 import { locatePython, offerInstall } from "./locate";
 
-export interface TransformRequest {
-  root: string;
-  file: string;
-  text: string;
-  mode: string;
-}
+export type TransformRequest =
+  | { root: string; file: string; mode: string; text: string }
+  /** Chunk the saved file into the folder `out`. */
+  | { root: string; file: string; mode: "chunk"; out: string };
 
 export type TransformResult =
   | { ok: true; output: string; assets: Record<string, string> }
+  /** A chunk run: the pages are in `dir`; `landing` is the one to open first. */
+  | { ok: true; dir: string; landing: string }
   | { ok: false; error: string; traceback?: string };
 
 interface Pending {

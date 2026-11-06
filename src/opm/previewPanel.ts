@@ -1,10 +1,12 @@
 import { randomBytes } from "crypto";
+import * as fs from "fs";
+import * as os from "os";
 import * as path from "path";
 import * as vscode from "vscode";
 import { OpmHelper } from "./helper";
 import { OutputDocuments } from "./outputDocuments";
 import { findOpmProject, isPreviewable } from "./project";
-import { isPreviewMode, PREVIEW_MODES, previewPage, PreviewMode } from "./render";
+import { chunkPage, isPreviewMode, PREVIEW_MODES, previewPage, PreviewMode } from "./render";
 import { PreviewServer } from "./server";
 
 const DEBOUNCE_MS = 400;
@@ -13,6 +15,8 @@ const DEBOUNCE_MS = 400;
  * "Open opm Preview to the Side": a panel beside an XML file of an opm
  * project showing it transformed by opm, refreshed while you type and
  * whenever a file of the project (ODD, CSS, templates, opm.toml) is saved.
+ * The chunk mode publishes a folder of pages instead of one, from the saved
+ * file, so it refreshes on save only.
  */
 export function registerOpmPreview(context: vscode.ExtensionContext): vscode.Disposable {
   const helper = new OpmHelper(context);
@@ -56,6 +60,12 @@ export function registerOpmPreview(context: vscode.ExtensionContext): vscode.Dis
       const preview = new OpmPreview(context, helper, server, outputs, doc, root, () => panels.delete(key));
       panels.set(key, preview);
     }),
+    // Title-bar buttons of the preview; VS Code's own command does the work
+    ...["oddity.opmMaximize", "oddity.opmRestore"].map((id) =>
+      vscode.commands.registerCommand(id, () =>
+        vscode.commands.executeCommand("workbench.action.toggleMaximizeEditorGroup")
+      )
+    ),
     vscode.commands.registerCommand("oddity.opmRestart", () => {
       helper.allowInstallPrompt();
       helper.restart();
@@ -76,6 +86,8 @@ class OpmPreview {
   private ready = false;
   /** Latest output, for "Open output". */
   private output?: { mode: PreviewMode; text: string };
+  /** Where chunk runs write their pages; removed with the panel. */
+  private readonly chunkDir = path.join(os.tmpdir(), "oddity-preview", this.id);
 
   constructor(
     context: vscode.ExtensionContext,
@@ -106,13 +118,20 @@ class OpmPreview {
       this.panel.onDidDispose(() => this.dispose()),
       this.panel.webview.onDidReceiveMessage((msg) => this.onMessage(msg)),
       vscode.workspace.onDidChangeTextDocument((e) => {
-        if (e.document === this.doc && e.contentChanges.length) {
+        if (e.document !== this.doc || !e.contentChanges.length) {
+          return;
+        }
+        if (this.mode === "chunk") {
+          this.post({ type: "stale", dirty: this.doc.isDirty });
+        } else {
           this.schedule();
         }
       }),
       vscode.workspace.onDidSaveTextDocument((saved) => {
-        // ODD, CSS, templates, opm.toml, registers: anything the output may use
-        if (saved !== this.doc && isInside(saved.uri.fsPath, this.root)) {
+        // The document itself only matters to chunk, which reads it from disk;
+        // otherwise ODD, CSS, templates, opm.toml, registers: anything the
+        // output may use
+        if (saved === this.doc ? this.mode === "chunk" : isInside(saved.uri.fsPath, this.root)) {
           this.schedule();
         }
       })
@@ -127,6 +146,7 @@ class OpmPreview {
     clearTimeout(this.timer);
     this.server.remove(this.id);
     this.outputs.forget(this.id);
+    fs.rm(this.chunkDir, { recursive: true, force: true }, () => undefined);
     this.subs.forEach((s) => s.dispose());
     this.subs.length = 0;
     this.onDispose();
@@ -164,12 +184,12 @@ class OpmPreview {
     const mode = this.mode;
     const started = Date.now();
     this.post({ type: "busy" });
-    const result = await this.helper.transform({
-      root: this.root,
-      file: this.doc.uri.fsPath,
-      text: this.doc.getText(),
-      mode,
-    });
+    const file = this.doc.uri.fsPath;
+    const result = await this.helper.transform(
+      mode === "chunk"
+        ? { root: this.root, file, mode, out: this.chunkDir }
+        : { root: this.root, file, mode, text: this.doc.getText() }
+    );
     if (seq !== this.seq) {
       return;
     }
@@ -180,19 +200,34 @@ class OpmPreview {
       this.post({ type: "error", message: result.error });
       return;
     }
-    this.output = { mode, text: result.output };
-    // An output tab already open for this mode follows the preview
-    this.outputs.set(OutputDocuments.uri(this.id, this.doc.fileName, mode), result.output);
-    const url = await this.server.publish(this.id, {
-      html: previewPage(mode, result.output, this.server.pagedJsPath),
-      assets: result.assets,
-      docDir: path.dirname(this.doc.uri.fsPath),
-      root: this.root,
-    });
+    const docDir = path.dirname(file);
+    let url: vscode.Uri;
+    if ("dir" in result) {
+      this.output = undefined;
+      url = await this.server.publish(this.id, {
+        dir: result.dir,
+        landing: result.landing,
+        page: chunkPage,
+        docDir,
+        root: this.root,
+      });
+    } else {
+      this.output = { mode, text: result.output };
+      // An output tab already open for this mode follows the preview
+      this.outputs.set(OutputDocuments.uri(this.id, this.doc.fileName, mode), result.output);
+      url = await this.server.publish(this.id, {
+        html: previewPage(mode, result.output, this.server.pagedJsPath),
+        assets: result.assets,
+        docDir,
+        root: this.root,
+      });
+    }
     this.post({
       type: "show",
-      url: `${url.toString(true)}?v=${seq}`,
+      url: url.toString(true),
+      v: seq,
       mode,
+      dirty: mode === "chunk" && this.doc.isDirty,
       elapsed: Date.now() - started,
     });
   }
@@ -263,10 +298,17 @@ function previewHtml(origin: string, mode: PreviewMode): string {
   const vscode = acquireVsCodeApi();
   const $ = (id) => document.getElementById(id);
   const frame = $("frame"), status = $("status");
-  let elapsed = 0, hasOutput = false;
+  let stale = false;
+  let elapsed = 0, hasOutput = false, mode = ${JSON.stringify(mode)};
+  /** Page of the chunk site on show, to reload in place on refresh. */
+  let chunkPath = null;
+  const UNSAVED = "Unsaved changes · chunk reads the saved file: save to update";
 
   $("open").onclick = () => vscode.postMessage({ type: "openOutput" });
-  $("mode").onchange = (e) => vscode.postMessage({ type: "mode", mode: e.target.value });
+  $("mode").onchange = (e) => {
+    chunkPath = null;
+    vscode.postMessage({ type: "mode", mode: e.target.value });
+  };
   $("log").onclick = () => vscode.postMessage({ type: "log" });
   $("restart").onclick = () => vscode.postMessage({ type: "restart" });
 
@@ -281,6 +323,8 @@ function previewHtml(origin: string, mode: PreviewMode): string {
     // Messages from the preview frame
     if (e.source === frame.contentWindow && m.oddityPreview) {
       if (m.oddityPreview === "done") {
+        if (mode === "chunk" && m.path) chunkPath = m.path;
+        if (mode === "chunk" && stale) return;
         setStatus("Up to date · " + elapsed + " ms" + (m.pages ? " · " + m.pages + " pages" : ""));
       } else {
         setStatus(m.message || "Preview error");
@@ -291,13 +335,27 @@ function previewHtml(origin: string, mode: PreviewMode): string {
       case "busy":
         setStatus(hasOutput ? "Updating…" : "Transforming…", true);
         break;
-      case "show":
+      case "show": {
         hasOutput = true;
         elapsed = m.elapsed;
+        mode = m.mode;
+        stale = !!m.dirty;
         $("error").hidden = true;
+        // A chunk run is a folder of pages: nothing to open as one file
+        $("open").hidden = mode === "chunk";
         $("open").disabled = false;
-        frame.src = m.url;
-        setStatus(m.mode === "print" ? "Paginating…" : "Up to date · " + elapsed + " ms", m.mode === "print");
+        const url = new URL(m.url);
+        // Stay on the chunk page being read, if it is still there
+        if (mode === "chunk" && chunkPath) url.pathname = chunkPath;
+        url.searchParams.set("v", m.v);
+        frame.src = url.toString();
+        if (stale) setStatus(UNSAVED);
+        else setStatus(mode === "print" ? "Paginating…" : "Up to date · " + elapsed + " ms", mode === "print");
+        break;
+      }
+      case "stale":
+        stale = m.dirty;
+        if (stale) setStatus(UNSAVED);
         break;
       case "error":
         $("message").textContent = m.message;
