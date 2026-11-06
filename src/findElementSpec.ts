@@ -6,7 +6,7 @@ import { parseOdd } from "./oddModel";
 export function registerFindElementSpec(
   context: vscode.ExtensionContext
 ): vscode.Disposable {
-  return vscode.commands.registerCommand("oddTools.findElementSpec", () =>
+  return vscode.commands.registerCommand("oddity.findElementSpec", () =>
     showElementSpecPicker()
   );
 }

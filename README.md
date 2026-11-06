@@ -92,7 +92,7 @@ extension. If an ODD already points at a resolvable schema through an
 Otherwise a managed entry is added to `xml.fileAssociations` so the bundled
 schema applies anyway.
 
-Disable this with `"oddTools.autoBindSchema": false`.
+Disable this with `"oddity.autoBindSchema": false`.
 
 ### Recompile in TEI Publisher
 
@@ -112,6 +112,24 @@ Recompilation operates on the **copy in eXist**, not the local file. Save your
 changes and ensure they are synced or deployed to the database (e.g. via
 exist-db sync) before recompiling.
 
+### opm preview
+
+In an [opm](https://github.com/eeditiones/open-processing-model) project (a
+folder with an `opm.toml`), **opm: Open opm Preview to the Side** shows the
+open XML file transformed by opm, as `opm transform` would produce it. The ODD,
+templates and assets are the ones `opm.toml` names. Pick the output mode
+(web, print or Markdown) in the panel; print output is paginated with
+Paged.js. **Open output** shows the raw output in a read-only editor tab, which
+keeps following the preview.
+
+The preview follows your typing without saving, and refreshes whenever a file
+of the project (the ODD, CSS, templates, `opm.toml`) is saved.
+
+It needs opm installed (`uv tool install open-processing-model`); if it is
+missing, ODDity offers to install it. ODDity looks for `opm` on the PATH and in
+`~/.local/bin`; set `oddity.opm.path`, or `oddity.opm.python` for an
+interpreter in a virtual environment, if it lives elsewhere.
+
 ## Commands
 
 All commands are listed under the **ODD** category in the command palette
@@ -124,6 +142,8 @@ All commands are listed under the **ODD** category in the command palette
 | **Add &lt;elementSpec&gt;** | Command palette; editor context menu (source view) | Insert a new `<elementSpec>` into `<schemaSpec>` — pick an ident from the inherited ODD or type a new one. Inserts after the spec under the cursor, or before `</schemaSpec>`. |
 | **Go to elementSpec** | Command palette; <kbd>Ctrl+F</kbd> / <kbd>Cmd+F</kbd> (graphical editor) | Quick-pick any `<elementSpec>` in the graphical editor and jump to it. |
 | **Recompile ODD on server** | Command palette; editor title bar; editor context menu | Trigger ODD compilation on a running TEI Publisher instance (when the project is eligible; see above). |
+| **Open opm Preview to the Side** | Command palette; editor title bar; explorer context menu (XML files in an opm project) | Show the XML file transformed by opm, updated as you type (see above). |
+| **Restart opm Preview Process** | Command palette | Restart the opm process behind the preview, e.g. after updating opm. |
 
 ## Requirements
 

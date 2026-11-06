@@ -40,7 +40,7 @@ input[type="text"],
 select,
 textarea {
   font: inherit;
-  /* Same size as the code editor fields they sit beside (oddTools.editorFontSize) */
+  /* Same size as the code editor fields they sit beside (oddity.editorFontSize) */
   font-size: var(--oddity-font-size, var(--vscode-editor-font-size, 13px));
   color: var(--vscode-input-foreground);
   background: var(--vscode-input-background);

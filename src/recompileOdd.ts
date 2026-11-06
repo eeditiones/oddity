@@ -11,7 +11,7 @@ import {
   type ExistDbConfig,
 } from "./existConfig";
 
-const CAN_RECOMPILE_CONTEXT = "oddTools.canRecompileOdd";
+const CAN_RECOMPILE_CONTEXT = "oddity.canRecompileOdd";
 
 export function registerRecompileOdd(
   context: vscode.ExtensionContext
@@ -29,7 +29,7 @@ export function registerRecompileOdd(
 
   return vscode.Disposable.from(
     vscode.commands.registerCommand(
-      "oddTools.recompileOdd",
+      "oddity.recompileOdd",
       (uri?: vscode.Uri) => recompileOdd(uri)
     ),
     vscode.window.onDidChangeActiveTextEditor((editor) =>

@@ -20,12 +20,27 @@ interface FileAssociation {
  * `xml.fileAssociations` entry pointing at the bundled XSD so validation and
  * completion work regardless.
  */
+/**
+ * The `oddity.autoBindSchema` setting. Until 0.6 it was `oddTools.autoBindSchema`,
+ * which is still honoured when the new one has not been set anywhere.
+ */
+function autoBindSchema(): boolean {
+  const current = vscode.workspace.getConfiguration("oddity").inspect<boolean>("autoBindSchema");
+  const isSet = (i?: { globalValue?: unknown; workspaceValue?: unknown; workspaceFolderValue?: unknown }) =>
+    i?.globalValue !== undefined || i?.workspaceValue !== undefined || i?.workspaceFolderValue !== undefined;
+  if (!isSet(current)) {
+    const legacy = vscode.workspace.getConfiguration("oddTools").inspect<boolean>("autoBindSchema");
+    if (isSet(legacy)) {
+      return legacy!.workspaceFolderValue ?? legacy!.workspaceValue ?? legacy!.globalValue ?? true;
+    }
+  }
+  return vscode.workspace.getConfiguration("oddity").get<boolean>("autoBindSchema", true);
+}
+
 export async function ensureSchemaBinding(
   context: vscode.ExtensionContext
 ): Promise<void> {
-  const enabled = vscode.workspace
-    .getConfiguration("oddTools")
-    .get<boolean>("autoBindSchema", true);
+  const enabled = autoBindSchema();
 
   if (!enabled) {
     await removeManagedAssociation();

@@ -2,7 +2,7 @@ import * as vscode from "vscode";
 import { insertElementSpecSnippet } from "./elementSpecInsert";
 
 /**
- * `oddTools.addElementSpec` — add an `<elementSpec>` to the document's
+ * `oddity.addElementSpec` — add an `<elementSpec>` to the document's
  * `<schemaSpec>`.
  *
  * The user either picks an ident inherited from the parent ODD (named by
@@ -23,7 +23,7 @@ import { insertElementSpecSnippet } from "./elementSpecInsert";
 export function registerAddElementSpec(
   context: vscode.ExtensionContext
 ): vscode.Disposable {
-  return vscode.commands.registerCommand("oddTools.addElementSpec", () =>
+  return vscode.commands.registerCommand("oddity.addElementSpec", () =>
     addElementSpec(context)
   );
 }

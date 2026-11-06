@@ -37,7 +37,7 @@ import {
  * unmodeled markup stay as they are.
  */
 export class OddEditorProvider implements vscode.CustomTextEditorProvider {
-  public static readonly viewType = "oddTools.graphicalEditor";
+  public static readonly viewType = "oddity.graphicalEditor";
 
   /** Guards the self-edit → change-event → reload feedback loop. */
   private editing = false;
@@ -206,7 +206,7 @@ export class OddEditorProvider implements vscode.CustomTextEditorProvider {
     };
 
     const configSub = vscode.workspace.onDidChangeConfiguration((e) => {
-      if (e.affectsConfiguration("oddTools.editorFontSize")) {
+      if (e.affectsConfiguration("oddity.editorFontSize")) {
         panel.webview.postMessage({ type: "fontSize", css: fontSizeCss() });
       }
     });
@@ -273,7 +273,7 @@ export class OddEditorProvider implements vscode.CustomTextEditorProvider {
         return;
       case "recompileOdd":
         await vscode.commands.executeCommand(
-          "oddTools.recompileOdd",
+          "oddity.recompileOdd",
           document.uri
         );
         return;
@@ -451,12 +451,12 @@ export class OddEditorProvider implements vscode.CustomTextEditorProvider {
 }
 
 /**
- * Font size for the form's inputs and code fields: the `oddTools.editorFontSize`
+ * Font size for the form's inputs and code fields: the `oddity.editorFontSize`
  * setting, or the VS Code editor font size when it is 0 or unset.
  */
 function fontSizeCss(): string {
   const size = vscode.workspace
-    .getConfiguration("oddTools")
+    .getConfiguration("oddity")
     .get<number>("editorFontSize", 0);
   return size > 0 ? `${size}px` : "var(--vscode-editor-font-size, 13px)";
 }

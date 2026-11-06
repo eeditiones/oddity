@@ -6,6 +6,7 @@ import { registerFindElementSpec } from "./findElementSpec";
 import { registerOpenGraphicalEditorAtElementSpec } from "./openGraphicalEditorAtElementSpec";
 import { registerRecompileOdd } from "./recompileOdd";
 import { ensureSchemaBinding } from "./schemaBinding";
+import { registerOpmPreview } from "./opm/previewPanel";
 
 const ODD_SELECTOR: vscode.DocumentSelector = {
   language: "xml",
@@ -22,12 +23,13 @@ export function activate(context: vscode.ExtensionContext): void {
     registerRecompileOdd(context),
     registerFindElementSpec(context),
     registerOpenGraphicalEditorAtElementSpec(context),
+    registerOpmPreview(context),
     vscode.window.registerCustomEditorProvider(
       OddEditorProvider.viewType,
       new OddEditorProvider(context),
       { webviewOptions: { retainContextWhenHidden: true } }
     ),
-    vscode.commands.registerCommand("oddTools.openGraphicalEditor", (uri?: vscode.Uri) => {
+    vscode.commands.registerCommand("oddity.openGraphicalEditor", (uri?: vscode.Uri) => {
       const target = uri ?? vscode.window.activeTextEditor?.document.uri;
       if (target) {
         vscode.commands.executeCommand(
@@ -42,7 +44,7 @@ export function activate(context: vscode.ExtensionContext): void {
 
   const bind = () =>
     ensureSchemaBinding(context).catch((err) =>
-      console.error("[TEI ODD Tools] schema binding failed:", err)
+      console.error("[ODDity] schema binding failed:", err)
     );
 
   bind();
@@ -54,7 +56,10 @@ export function activate(context: vscode.ExtensionContext): void {
       }
     }),
     vscode.workspace.onDidChangeConfiguration((e) => {
-      if (e.affectsConfiguration("oddTools.autoBindSchema")) {
+      if (
+        e.affectsConfiguration("oddity.autoBindSchema") ||
+        e.affectsConfiguration("oddTools.autoBindSchema")
+      ) {
         bind();
       }
     })

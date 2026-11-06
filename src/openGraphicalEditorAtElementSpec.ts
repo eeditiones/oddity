@@ -7,7 +7,7 @@ import {
 import { OddEditorProvider } from "./oddEditorProvider";
 import { parseOdd } from "./oddModel";
 
-const CURSOR_IN_ELEMENT_SPEC_CONTEXT = "oddTools.cursorInElementSpec";
+const CURSOR_IN_ELEMENT_SPEC_CONTEXT = "oddity.cursorInElementSpec";
 
 export function registerOpenGraphicalEditorAtElementSpec(
   context: vscode.ExtensionContext
@@ -24,7 +24,7 @@ export function registerOpenGraphicalEditorAtElementSpec(
 
   return vscode.Disposable.from(
     vscode.commands.registerCommand(
-      "oddTools.openGraphicalEditorAtElementSpec",
+      "oddity.openGraphicalEditorAtElementSpec",
       () => openGraphicalEditorAtElementSpec()
     ),
     vscode.window.onDidChangeActiveTextEditor(() => updateContext()),

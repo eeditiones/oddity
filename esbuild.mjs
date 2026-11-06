@@ -1,4 +1,5 @@
 import * as esbuild from "esbuild";
+import * as fs from "fs";
 
 const watch = process.argv.includes("--watch");
 const minify = process.argv.includes("--minify");
@@ -26,6 +27,13 @@ const webview = {
   // Inline the codicon font into the bundled CSS as a data: URL.
   loader: { ".ttf": "dataurl" },
 };
+
+// The print preview loads Paged.js from the extension's preview server
+fs.mkdirSync("dist", { recursive: true });
+fs.copyFileSync(
+  "node_modules/pagedjs/dist/paged.polyfill.min.js",
+  "dist/paged.polyfill.min.js"
+);
 
 if (watch) {
   const contexts = await Promise.all([

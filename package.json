@@ -46,7 +46,7 @@
     ],
     "customEditors": [
       {
-        "viewType": "oddTools.graphicalEditor",
+        "viewType": "oddity.graphicalEditor",
         "displayName": "ODD Graphical Editor",
         "selector": [
           {
@@ -58,122 +58,163 @@
     ],
     "commands": [
       {
-        "command": "oddTools.openGraphicalEditor",
+        "command": "oddity.openGraphicalEditor",
         "title": "Open Graphical Editor",
         "category": "ODD",
         "icon": "$(symbol-structure)"
       },
       {
-        "command": "oddTools.addElementSpec",
+        "command": "oddity.addElementSpec",
         "title": "Add <elementSpec>",
         "category": "ODD",
         "icon": "$(add)"
       },
       {
-        "command": "oddTools.recompileOdd",
+        "command": "oddity.recompileOdd",
         "title": "Recompile ODD on server",
         "category": "ODD",
         "icon": "$(sync)"
       },
       {
-        "command": "oddTools.findElementSpec",
+        "command": "oddity.findElementSpec",
         "title": "Go to elementSpec",
         "category": "ODD",
         "icon": "$(search)"
       },
       {
-        "command": "oddTools.openGraphicalEditorAtElementSpec",
+        "command": "oddity.openGraphicalEditorAtElementSpec",
         "title": "Open elementSpec in Graphical Editor",
         "category": "ODD",
         "icon": "$(symbol-structure)"
+      },
+      {
+        "command": "oddity.opmPreview",
+        "title": "Open opm Preview to the Side",
+        "category": "opm",
+        "icon": "$(open-preview)"
+      },
+      {
+        "command": "oddity.opmRestart",
+        "title": "Restart opm Preview Process",
+        "category": "opm"
       }
     ],
     "keybindings": [
       {
-        "command": "oddTools.findElementSpec",
+        "command": "oddity.findElementSpec",
         "key": "ctrl+f",
         "mac": "cmd+f",
-        "when": "activeCustomEditorId == oddTools.graphicalEditor"
+        "when": "activeCustomEditorId == oddity.graphicalEditor"
       }
     ],
     "menus": {
       "editor/title": [
         {
-          "command": "oddTools.openGraphicalEditor",
-          "when": "resourceExtname == .odd && activeCustomEditorId != oddTools.graphicalEditor",
+          "command": "oddity.openGraphicalEditor",
+          "when": "resourceExtname == .odd && activeCustomEditorId != oddity.graphicalEditor",
           "group": "navigation"
         },
         {
-          "command": "oddTools.recompileOdd",
-          "when": "resourceExtname == .odd && oddTools.canRecompileOdd",
+          "command": "oddity.recompileOdd",
+          "when": "resourceExtname == .odd && oddity.canRecompileOdd",
+          "group": "navigation"
+        },
+        {
+          "command": "oddity.opmPreview",
+          "when": "resourceExtname == .xml && oddity.inOpmProject",
           "group": "navigation"
         }
       ],
       "explorer/context": [
         {
-          "command": "oddTools.openGraphicalEditor",
+          "command": "oddity.openGraphicalEditor",
           "when": "resourceExtname == .odd",
+          "group": "navigation"
+        },
+        {
+          "command": "oddity.opmPreview",
+          "when": "resourceExtname == .xml",
           "group": "navigation"
         }
       ],
       "editor/context": [
         {
-          "command": "oddTools.openGraphicalEditor",
-          "when": "resourceExtname == .odd && editorLangId == xml && activeCustomEditorId != oddTools.graphicalEditor",
+          "command": "oddity.openGraphicalEditor",
+          "when": "resourceExtname == .odd && editorLangId == xml && activeCustomEditorId != oddity.graphicalEditor",
           "group": "navigation"
         },
         {
-          "command": "oddTools.openGraphicalEditorAtElementSpec",
-          "when": "resourceExtname == .odd && editorLangId == xml && oddTools.cursorInElementSpec",
+          "command": "oddity.openGraphicalEditorAtElementSpec",
+          "when": "resourceExtname == .odd && editorLangId == xml && oddity.cursorInElementSpec",
           "group": "navigation"
         },
         {
-          "command": "oddTools.addElementSpec",
+          "command": "oddity.addElementSpec",
           "when": "resourceExtname == .odd && editorLangId == xml",
           "group": "1_modification"
         },
         {
-          "command": "oddTools.recompileOdd",
-          "when": "resourceExtname == .odd && oddTools.canRecompileOdd",
+          "command": "oddity.recompileOdd",
+          "when": "resourceExtname == .odd && oddity.canRecompileOdd",
           "group": "1_modification"
         }
       ],
       "commandPalette": [
         {
-          "command": "oddTools.openGraphicalEditor",
+          "command": "oddity.openGraphicalEditor",
           "when": "resourceExtname == .odd"
         },
         {
-          "command": "oddTools.addElementSpec",
+          "command": "oddity.addElementSpec",
           "when": "resourceExtname == .odd && editorLangId == xml"
         },
         {
-          "command": "oddTools.recompileOdd",
-          "when": "resourceExtname == .odd && oddTools.canRecompileOdd"
+          "command": "oddity.recompileOdd",
+          "when": "resourceExtname == .odd && oddity.canRecompileOdd"
         },
         {
-          "command": "oddTools.findElementSpec",
-          "when": "activeCustomEditorId == oddTools.graphicalEditor"
+          "command": "oddity.findElementSpec",
+          "when": "activeCustomEditorId == oddity.graphicalEditor"
         },
         {
-          "command": "oddTools.openGraphicalEditorAtElementSpec",
-          "when": "resourceExtname == .odd && editorLangId == xml && oddTools.cursorInElementSpec"
+          "command": "oddity.openGraphicalEditorAtElementSpec",
+          "when": "resourceExtname == .odd && editorLangId == xml && oddity.cursorInElementSpec"
+        },
+        {
+          "command": "oddity.opmPreview",
+          "when": "resourceExtname == .xml && oddity.inOpmProject"
         }
       ]
     },
     "configuration": {
       "title": "ODDity",
       "properties": {
-        "oddTools.autoBindSchema": {
+        "oddity.autoBindSchema": {
           "type": "boolean",
           "default": true,
           "markdownDescription": "Automatically bind the bundled `teipublisher_odds.xsd` schema to `.odd` files (via `xml.fileAssociations`) when they do not already reference a resolvable schema through an `xml-model` processing instruction."
         },
-        "oddTools.editorFontSize": {
+        "oddity.editorFontSize": {
           "type": "number",
           "default": 0,
           "minimum": 0,
           "markdownDescription": "Font size in pixels for the input fields and code fields of the graphical ODD editor. `0` uses `#editor.fontSize#`."
+        },
+        "oddity.opm.path": {
+          "type": "string",
+          "default": "",
+          "markdownDescription": "Path of the `opm` command used by the opm preview. Empty: `opm` on the PATH, or the one `uv tool install open-processing-model` put in `~/.local/bin`."
+        },
+        "oddity.opm.python": {
+          "type": "string",
+          "default": "",
+          "markdownDescription": "Python interpreter that has opm installed, for the opm preview. Takes precedence over `#oddity.opm.path#`; use it when opm lives in a virtual environment."
+        },
+        "oddity.opm.defaultMode": {
+          "type": "string",
+          "enum": ["web", "print", "markdown"],
+          "default": "web",
+          "markdownDescription": "Output mode a new opm preview starts with."
         }
       }
     },
@@ -215,6 +256,9 @@
     "@vscode/codicons": "^0.0.45",
     "esbuild": "^0.20.0",
     "lit": "^3.3.3",
+    "marked": "^15.0.12",
+    "marked-footnote": "^1.4.0",
+    "pagedjs": "^0.4.3",
     "typescript": "^5.4.0"
   }
 }
