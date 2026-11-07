@@ -6,9 +6,10 @@ import * as path from "path";
 import * as vscode from "vscode";
 
 /**
- * One preview's current output and the files it may link: either a single
- * page (`html`, with its `assets`) or a folder of pages written by a chunk run
- * (`dir`, whose HTML pages pass through `page` on the way out).
+ * One preview's current output and the files it may link: a single page
+ * (`html`, with its `assets`), a folder of pages written by a chunk run (`dir`,
+ * whose HTML pages pass through `page` on the way out), or both: a page
+ * showing the files of `dir` (Typst's SVG pages).
  */
 export interface PreviewSite {
   html?: string;
@@ -70,7 +71,7 @@ export class PreviewServer implements vscode.Disposable {
   async publish(id: string, site: PreviewSite): Promise<vscode.Uri> {
     this.sites.set(id, site);
     const base = await this.start();
-    const page = site.dir ? site.landing ?? "index.html" : "index.html";
+    const page = site.html === undefined && site.dir ? site.landing ?? "index.html" : "index.html";
     return vscode.Uri.parse(`${base}/${this.token}/p/${id}/${encodeURI(page)}`);
   }
 

@@ -7,12 +7,18 @@ import { locatePython, offerInstall } from "./locate";
 export type TransformRequest =
   | { root: string; file: string; mode: string; text: string }
   /** Chunk the saved file into the folder `out`. */
-  | { root: string; file: string; mode: "chunk"; out: string };
+  | { root: string; file: string; mode: "chunk"; out: string }
+  /** Compile the Typst output with `typst` to SVG pages in `out`, or to the PDF file `pdf`. */
+  | { root: string; file: string; mode: "typst"; text: string; typst: string; out?: string; pdf?: string };
 
 export type TransformResult =
   | { ok: true; output: string; assets: Record<string, string> }
   /** A chunk run: the pages are in `dir`; `landing` is the one to open first. */
   | { ok: true; dir: string; landing: string }
+  /** Typst pages: the source in `output`, one SVG per page in `dir`. */
+  | { ok: true; output: string; dir: string; pages: string[] }
+  /** A PDF export. */
+  | { ok: true; pdf: string }
   | { ok: false; error: string; traceback?: string };
 
 interface Pending {

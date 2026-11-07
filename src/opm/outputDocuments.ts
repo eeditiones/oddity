@@ -19,7 +19,7 @@ export class OutputDocuments implements vscode.TextDocumentContentProvider, vsco
 
   /** URI of a preview's output; the extension picks the editor's language. */
   static uri(previewId: string, xmlFile: string, mode: string): vscode.Uri {
-    const ext = mode === "markdown" ? "md" : "html";
+    const ext = mode === "markdown" ? "md" : mode === "typst" ? "typ" : "html";
     const name = `${path.basename(xmlFile, path.extname(xmlFile))}.${mode}.${ext}`;
     return vscode.Uri.from({ scheme: OUTPUT_SCHEME, path: `/${previewId}/${name}` });
   }

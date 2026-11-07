@@ -130,6 +130,13 @@ the project's `[chunking]` settings, and lets you browse between them. It works
 from the saved file, so it refreshes when you save; the page you are reading
 stays open across refreshes.
 
+The **typst** mode shows the pages Typst compiles from the project's Typst
+output, following your typing like the other modes. **Export PDF** compiles the
+same output to a PDF file. The mode is only offered when the `typst` command is
+installed (see [typst.app](https://typst.app/open-source/)); ODDity looks for it
+on the PATH and in the usual install folders, or set `oddity.opm.typst`. After
+installing it, run **Restart opm Preview Process** to make the mode appear.
+
 It needs opm installed (`uv tool install open-processing-model`); if it is
 missing, ODDity offers to install it. ODDity looks for `opm` on the PATH and in
 `~/.local/bin`; set `oddity.opm.path`, or `oddity.opm.python` for an

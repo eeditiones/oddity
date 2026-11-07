@@ -242,9 +242,14 @@
         },
         "oddity.opm.defaultMode": {
           "type": "string",
-          "enum": ["web", "print", "markdown", "chunk"],
+          "enum": ["web", "print", "markdown", "chunk", "typst"],
           "default": "web",
-          "markdownDescription": "Output mode a new opm preview starts with."
+          "markdownDescription": "Output mode a new opm preview starts with. `typst` needs the typst command; without it the preview starts with `web`."
+        },
+        "oddity.opm.typst": {
+          "type": "string",
+          "default": "",
+          "markdownDescription": "Path of the `typst` command, for the preview's typst mode. Empty: `typst` on the PATH, or in `/opt/homebrew/bin`, `/usr/local/bin`, `~/.cargo/bin` or `~/.local/bin`."
         }
       }
     },

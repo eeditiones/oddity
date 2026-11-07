@@ -91,6 +91,34 @@ function userBinOpm(): string | undefined {
   return fs.existsSync(opm) ? opm : undefined;
 }
 
+/**
+ * The `typst` command, or undefined when there is none: the `oddity.opm.typst`
+ * setting, else `typst` on the PATH, else the folders installers use that a
+ * VS Code started from the dock may not have on its PATH.
+ */
+export function locateTypst(): string | undefined {
+  const explicit = vscode.workspace.getConfiguration("oddity.opm").get<string>("typst")?.trim();
+  if (explicit) {
+    return isFile(explicit) ? explicit : undefined;
+  }
+  const found = findOnPath("typst");
+  if (found) {
+    return found;
+  }
+  const home = process.env.HOME ?? process.env.USERPROFILE ?? "";
+  const exe = process.platform === "win32" ? "typst.exe" : "typst";
+  const dirs = ["/opt/homebrew/bin", "/usr/local/bin", path.join(home, ".cargo", "bin"), path.join(home, ".local", "bin")];
+  return dirs.map((d) => path.join(d, exe)).find(isFile);
+}
+
+function isFile(file: string): boolean {
+  try {
+    return fs.statSync(file).isFile();
+  } catch {
+    return false;
+  }
+}
+
 function findOnPath(name: string): string | undefined {
   const exts = process.platform === "win32" ? [".exe", ".cmd", ""] : [""];
   for (const dir of (process.env.PATH ?? "").split(path.delimiter)) {

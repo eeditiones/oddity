@@ -12,7 +12,15 @@
 #
 # Mode "chunk" takes "out" (a directory) instead of using "text", and replies
 # {"id": 1, "ok": true, "dir": "/out", "landing": "a.xml/001.html"}.
+#
+# Mode "typst" also takes "typst" (the typst command) and "out" (a directory),
+# compiles the Typst output to one SVG per page there, and replies
+# {"id": 1, "ok": true, "output": "<typst source>", "dir": "/out",
+#  "pages": ["page-1.svg", …]}. With "pdf" (a file) instead of "out", it writes
+# a PDF there and replies {"id": 1, "ok": true, "pdf": "/a.pdf"}.
 import json
+import re
+import subprocess
 import sys
 import traceback
 from pathlib import Path
@@ -73,20 +81,60 @@ def _assets(project: Project, mode: str) -> dict[str, str]:
     return {source.name: str(source) for source in sources}
 
 
-def _transform(req: dict) -> dict:
+def _run_transform(req: dict, mode: str) -> tuple[Project, str | bytes]:
     root = Path(req['root'])
     file = Path(req['file'])
-    mode = req.get('mode') or 'web'
     _use_project(root)
     project = _project(root)
     # Parse the editor's text with the file's URL, so doc() and relative links
     # resolve against the real file although it may not be saved yet.
     parser = etree.XMLParser(remove_blank_text=False, resolve_entities=False)
     tree = etree.fromstring(req['text'].encode('utf-8'), parser, base_url=str(file)).getroottree()
-    output = project.transform(tree, mode=mode, parameters={'input_path': str(file)})
+    return project, project.transform(tree, mode=mode, parameters={'input_path': str(file)})
+
+
+def _transform(req: dict) -> dict:
+    mode = req.get('mode') or 'web'
+    project, output = _run_transform(req, mode)
     if isinstance(output, bytes):
         output = output.decode('utf-8', errors='replace')
     return {'ok': True, 'output': output, 'assets': _assets(project, mode)}
+
+
+def _typst(req: dict) -> dict:
+    """Compile the Typst output to SVG pages in req['out'], or to req['pdf'].
+
+    Typst gets the source on stdin with the XML's folder as its root, as
+    `opm transform -t typst` does, so image paths resolve next to the document.
+    """
+    _, source = _run_transform(req, 'typst')
+    if isinstance(source, bytes):
+        source = source.decode('utf-8', errors='replace')
+    file = Path(req['file'])
+    command = [req['typst'], 'compile', '--root', str(file.parent)]
+    if req.get('pdf'):
+        target = Path(req['pdf'])
+        command += ['--format', 'pdf', '-', str(target)]
+    else:
+        out = Path(req['out'])
+        out.mkdir(parents=True, exist_ok=True)
+        for old in out.glob('page-*.svg'):
+            old.unlink()
+        command += ['--format', 'svg', '-', str(out / 'page-{p}.svg')]
+    result = subprocess.run(command, input=source.encode('utf-8'), capture_output=True, check=False)
+    messages = result.stderr.decode('utf-8', errors='replace').strip()
+    if messages:
+        sys.stderr.write(messages + '\n')
+    if result.returncode != 0:
+        raise TypstError(messages or f'typst compile failed with exit status {result.returncode}')
+    if req.get('pdf'):
+        return {'ok': True, 'pdf': str(target)}
+    pages = sorted(out.glob('page-*.svg'), key=lambda p: int(re.sub(r'\D', '', p.name) or 0))
+    return {'ok': True, 'output': source, 'dir': str(out), 'pages': [p.name for p in pages]}
+
+
+class TypstError(Exception):
+    """typst compile failed; the message is what Typst reported."""
 
 
 def _chunk(req: dict) -> dict:
@@ -117,7 +165,8 @@ def main() -> None:
         req: dict = {}
         try:
             req = json.loads(line)
-            reply = _chunk(req) if req.get('mode') == 'chunk' else _transform(req)
+            mode = req.get('mode')
+            reply = _chunk(req) if mode == 'chunk' else _typst(req) if mode == 'typst' else _transform(req)
         except Exception as e:
             reply = {'ok': False, 'error': f'{type(e).__name__}: {e}', 'traceback': traceback.format_exc()}
         reply['id'] = req.get('id')

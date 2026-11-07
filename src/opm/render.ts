@@ -2,7 +2,7 @@ import { Marked } from "marked";
 import markedFootnote from "marked-footnote";
 
 /** Output modes the preview renders. */
-export const PREVIEW_MODES = ["web", "print", "markdown", "chunk"] as const;
+export const PREVIEW_MODES = ["web", "print", "markdown", "chunk", "typst"] as const;
 export type PreviewMode = (typeof PREVIEW_MODES)[number];
 export const isPreviewMode = (m: unknown): m is PreviewMode =>
   PREVIEW_MODES.includes(m as PreviewMode);
@@ -34,6 +34,35 @@ export function previewPage(mode: PreviewMode, output: string, pagedJs: string):
  */
 export function chunkPage(html: string): string {
   return inject(html, SCROLL_KEEPER + READY);
+}
+
+/**
+ * Typst's pages, one SVG each, as sheets. `v` busts the cache: the files keep
+ * their names from one compile to the next.
+ */
+export function typstPage(pages: string[], v: number): string {
+  const imgs = pages
+    .map((p, i) => `<img class="sheet" src="${encodeURI(p)}?v=${v}" alt="Page ${i + 1}">`)
+    .join("");
+  return `<!DOCTYPE html><html><head><meta charset="utf-8"><style>${TYPST_CSS}</style></head><body>${imgs}
+<script>${SCROLL_FN}
+(function () {
+  var imgs = Array.prototype.slice.call(document.images), left = imgs.length, failed = false;
+  function one(e) {
+    if (e && e.type === 'error') failed = true;
+    if (--left > 0) return;
+    window.__oddityScroll.restore();
+    parent.postMessage(failed
+      ? { oddityPreview: 'error', message: 'A page could not be loaded' }
+      : { oddityPreview: 'done', pages: imgs.length }, '*');
+  }
+  if (!left) { left = 1; one(); }
+  imgs.forEach(function (img) {
+    if (img.complete) one();
+    else { img.addEventListener('load', one); img.addEventListener('error', one); }
+  });
+})();
+</script></body></html>`;
 }
 
 const markdown = new Marked().use(markedFootnote());
@@ -107,6 +136,16 @@ window.PagedConfig = {
   }
 };
 </script>`;
+
+/** The sheet look of the print preview, for Typst's pages. */
+const TYPST_CSS = /* css */ `
+html, body { margin: 0; padding: 0; background: #efece4; }
+body { display: flex; flex-direction: column; align-items: center; padding: 12mm 12px; gap: 12mm; box-sizing: border-box; }
+.sheet {
+  display: block; max-width: 100%; height: auto; background: #fff; border-radius: 2px;
+  box-shadow: 0 1px 2px rgba(31,29,26,.10), 0 4px 10px rgba(31,29,26,.08), 0 12px 28px rgba(31,29,26,.10);
+}
+`;
 
 const MARKDOWN_CSS =
   "body{font:15px/1.6 system-ui,sans-serif;max-width:46rem;margin:1.5rem auto;padding:0 1rem;color:#222;background:#fff}pre,code{font-family:ui-monospace,monospace;background:#f3f3f0}pre{padding:.75rem;overflow:auto}blockquote{margin-left:0;padding-left:1rem;border-left:3px solid #ccc;color:#555}table{border-collapse:collapse}td,th{border:1px solid #ccc;padding:.25rem .5rem}img{max-width:100%}.footnotes{margin-top:2rem;border-top:1px solid #ccc;font-size:.9em}.sr-only{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0)}";
