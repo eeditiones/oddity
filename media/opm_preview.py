@@ -13,6 +13,12 @@
 # Mode "chunk" takes "out" (a directory) instead of using "text", and replies
 # {"id": 1, "ok": true, "dir": "/out", "landing": "a.xml/001.html"}.
 #
+# Mode "collection" chunks every XML file directly in "folder" into "out", as
+# `opm chunk <folder>` does, and replies {"id": 1, "ok": true, "dir": "/out",
+# "landing": "index.html"}. While it runs it writes progress lines:
+# {"id": 1, "progress": {"doc": 2, "docs": 5, "name": "b.xml", "done": 3, "total": 12}}
+# (total is 0 until the chunker knows it).
+#
 # Mode "typst" also takes "typst" (the typst command) and "out" (a directory),
 # compiles the Typst output to one SVG per page there, and replies
 # {"id": 1, "ok": true, "output": "<typst source>", "dir": "/out",
@@ -22,6 +28,7 @@ import json
 import re
 import subprocess
 import sys
+import time
 import traceback
 from pathlib import Path
 
@@ -157,6 +164,49 @@ def _chunk(req: dict) -> dict:
     return {'ok': True, 'dir': str(out), 'landing': landing.relative_to(out).as_posix()}
 
 
+def _chunk_collection(req: dict) -> dict:
+    """Chunk every XML file directly in req['folder'] into req['out'].
+
+    Each document gets a subfolder of out, and out/index.html lists them.
+    Subfolders are not searched, as with `opm chunk <folder>`.
+    """
+    from opm.project import chunk_input_files
+    root = Path(req['root'])
+    folder = Path(req['folder'])
+    out = Path(req['out'])
+    _use_project(root)
+    project = _project(root)
+    if not project.config.chunking:
+        raise ValueError('This project has no [chunking] section in opm.toml, so there is nothing to chunk.')
+    files = chunk_input_files(folder)
+    if not files:
+        raise ValueError(f'There are no XML files directly in {folder.name} to chunk.')
+    current = [0, '']
+    last = [0.0]
+
+    def report(done: int, total: int, force: bool = False) -> None:
+        # A page at a time would flood the pipe on large documents
+        now = time.monotonic()
+        if not force and now - last[0] < 0.1:
+            return
+        last[0] = now
+        _write({'id': req.get('id'), 'progress': {'doc': current[0], 'docs': len(files),
+                                                  'name': current[1], 'done': done, 'total': total}})
+
+    def on_document(position: int, path: Path) -> None:
+        current[:] = [position + 1, path.name]
+        report(0, 0, True)
+
+    project.chunk(folder, format='html', output_dir=out, overwrite=True,
+                  on_document=on_document, on_progress=report)
+    return {'ok': True, 'dir': str(out), 'landing': 'index.html'}
+
+
+def _write(message: dict) -> None:
+    _stdout.write(json.dumps(message) + '\n')
+    _stdout.flush()
+
+
 def main() -> None:
     for line in sys.stdin:
         line = line.strip()
@@ -166,12 +216,12 @@ def main() -> None:
         try:
             req = json.loads(line)
             mode = req.get('mode')
-            reply = _chunk(req) if mode == 'chunk' else _typst(req) if mode == 'typst' else _transform(req)
+            run = {'chunk': _chunk, 'collection': _chunk_collection, 'typst': _typst}.get(mode, _transform)
+            reply = run(req)
         except Exception as e:
             reply = {'ok': False, 'error': f'{type(e).__name__}: {e}', 'traceback': traceback.format_exc()}
         reply['id'] = req.get('id')
-        _stdout.write(json.dumps(reply) + '\n')
-        _stdout.flush()
+        _write(reply)
 
 
 if __name__ == '__main__':

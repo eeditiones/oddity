@@ -130,6 +130,13 @@ the project's `[chunking]` settings, and lets you browse between them. It works
 from the saved file, so it refreshes when you save; the page you are reading
 stays open across refreshes.
 
+To see a whole collection, right-click a folder of an opm project in the
+explorer and pick **Preview Collection with opm**. It shows what
+`opm chunk <folder>` writes: the pages of every XML file directly in the
+folder (not in its subfolders), with an index page. A collection can take a
+while to chunk, so it is not rebuilt on every save: the panel says when files
+have changed, and **Rebuild** chunks it again.
+
 The **typst** mode shows the pages Typst compiles from the project's Typst
 output, following your typing like the other modes. **Export PDF** compiles the
 same output to a PDF file. The mode is only offered when the `typst` command is

@@ -8,6 +8,8 @@ export type TransformRequest =
   | { root: string; file: string; mode: string; text: string }
   /** Chunk the saved file into the folder `out`. */
   | { root: string; file: string; mode: "chunk"; out: string }
+  /** Chunk every XML file directly in the folder `folder` into the folder `out`. */
+  | { root: string; folder: string; mode: "collection"; out: string }
   /** Compile the Typst output with `typst` to SVG pages in `out`, or to the PDF file `pdf`. */
   | { root: string; file: string; mode: "typst"; text: string; typst: string; out?: string; pdf?: string };
 
@@ -21,8 +23,18 @@ export type TransformResult =
   | { ok: true; pdf: string }
   | { ok: false; error: string; traceback?: string };
 
+/** How far a collection run has got: document `doc` of `docs`, page `done` of `total` (0 while unknown). */
+export interface ChunkProgress {
+  doc: number;
+  docs: number;
+  name: string;
+  done: number;
+  total: number;
+}
+
 interface Pending {
   resolve: (r: TransformResult) => void;
+  progress?: (p: ChunkProgress) => void;
 }
 
 /**
@@ -40,7 +52,7 @@ export class OpmHelper implements vscode.Disposable {
 
   constructor(private readonly context: vscode.ExtensionContext) {}
 
-  async transform(req: TransformRequest): Promise<TransformResult> {
+  async transform(req: TransformRequest, progress?: (p: ChunkProgress) => void): Promise<TransformResult> {
     const proc = await this.process();
     if (!proc?.stdin) {
       return {
@@ -52,7 +64,7 @@ export class OpmHelper implements vscode.Disposable {
     }
     const id = this.nextId++;
     return new Promise((resolve) => {
-      this.pending.set(id, { resolve });
+      this.pending.set(id, { resolve, progress });
       proc.stdin!.write(JSON.stringify({ id, ...req }) + "\n");
     });
   }
@@ -102,7 +114,7 @@ export class OpmHelper implements vscode.Disposable {
     proc.stderr?.setEncoding("utf8");
     proc.stderr?.on("data", (chunk: string) => this.log.append(chunk));
     readline.createInterface({ input: proc.stdout! }).on("line", (line) => {
-      let reply: { id?: number } & TransformResult;
+      let reply: { id?: number; progress?: ChunkProgress } & TransformResult;
       try {
         reply = JSON.parse(line);
       } catch {
@@ -110,7 +122,9 @@ export class OpmHelper implements vscode.Disposable {
         return;
       }
       const pending = reply.id !== undefined ? this.pending.get(reply.id) : undefined;
-      if (pending) {
+      if (pending && reply.progress) {
+        pending.progress?.(reply.progress);
+      } else if (pending) {
         this.pending.delete(reply.id!);
         pending.resolve(reply);
       }

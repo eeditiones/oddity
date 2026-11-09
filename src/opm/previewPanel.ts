@@ -3,6 +3,7 @@ import * as fs from "fs";
 import * as os from "os";
 import * as path from "path";
 import * as vscode from "vscode";
+import { CollectionPreview, collectionFolders } from "./collectionPreview";
 import { OpmHelper } from "./helper";
 import { locateTypst } from "./locate";
 import { OutputDocuments } from "./outputDocuments";
@@ -25,6 +26,7 @@ export function registerOpmPreview(context: vscode.ExtensionContext): vscode.Dis
   const server = new PreviewServer(context.extensionPath);
   const outputs = new OutputDocuments();
   const panels = new Map<string, OpmPreview>();
+  const collections = new Map<string, CollectionPreview>();
 
   const updateContext = () => {
     const doc = vscode.window.activeTextEditor?.document;
@@ -36,7 +38,24 @@ export function registerOpmPreview(context: vscode.ExtensionContext): vscode.Dis
   };
   updateContext();
 
+  // The folders the explorer offers a collection preview on
+  let scan: NodeJS.Timeout | undefined;
+  const updateFolders = () => {
+    clearTimeout(scan);
+    scan = setTimeout(async () => {
+      const folders = await collectionFolders();
+      void vscode.commands.executeCommand("setContext", "oddity.opmCollections", folders);
+    }, 1000);
+  };
+  updateFolders();
+  const watcher = vscode.workspace.createFileSystemWatcher("**/{opm.toml,*.xml}", false, true, false);
+
   return vscode.Disposable.from(
+    watcher,
+    watcher.onDidCreate(updateFolders),
+    watcher.onDidDelete(updateFolders),
+    vscode.workspace.onDidChangeWorkspaceFolders(updateFolders),
+    { dispose: () => clearTimeout(scan) },
     helper,
     server,
     outputs,
@@ -62,6 +81,26 @@ export function registerOpmPreview(context: vscode.ExtensionContext): vscode.Dis
       const preview = new OpmPreview(context, helper, server, outputs, doc, root, () => panels.delete(key));
       panels.set(key, preview);
     }),
+    vscode.commands.registerCommand("oddity.opmPreviewCollection", (uri?: vscode.Uri) => {
+      const root = uri && findOpmProject(vscode.Uri.joinPath(uri, "_"));
+      if (!uri || !root) {
+        vscode.window.showInformationMessage(
+          "The collection preview works on folders in a folder with an opm.toml (an opm project)."
+        );
+        return;
+      }
+      const key = uri.toString();
+      const existing = collections.get(key);
+      if (existing) {
+        existing.reveal();
+        return;
+      }
+      helper.allowInstallPrompt();
+      collections.set(
+        key,
+        new CollectionPreview(context, helper, server, uri.fsPath, root, () => collections.delete(key))
+      );
+    }),
     // Title-bar buttons of the preview; VS Code's own command does the work
     ...["oddity.opmMaximize", "oddity.opmRestore"].map((id) =>
       vscode.commands.registerCommand(id, () =>
@@ -72,8 +111,14 @@ export function registerOpmPreview(context: vscode.ExtensionContext): vscode.Dis
       helper.allowInstallPrompt();
       helper.restart();
       panels.forEach((p) => p.restarted());
+      collections.forEach((p) => p.restarted());
     }),
-    { dispose: () => panels.forEach((p) => p.dispose()) }
+    {
+      dispose: () => {
+        panels.forEach((p) => p.dispose());
+        collections.forEach((p) => p.dispose());
+      },
+    }
   );
 }
 
@@ -318,7 +363,11 @@ class OpmPreview {
   }
 }
 
-function isInside(file: string, root: string): boolean {
+function escapeHtml(text: string): string {
+  return text.replace(/[&<>"]/g, (c) => `&#${c.charCodeAt(0)};`);
+}
+
+export function isInside(file: string, root: string): boolean {
   const rel = path.relative(root, file);
   return !rel.startsWith("..") && !path.isAbsolute(rel);
 }
@@ -329,7 +378,11 @@ const GO_TO_FILE = `<svg aria-hidden="true" width="16" height="16" viewBox="0 0 
 /** The codicon "file-pdf", inline. */
 const FILE_PDF = `<svg aria-hidden="true" width="16" height="16" viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg" fill="currentColor"><path d="M13.5 7H13V5.414C13 5.016 12.842 4.635 12.561 4.353L9.647 1.439C9.366 1.158 8.984 1 8.586 1H5C3.895 1 3 1.895 3 3V7H2.5C1.673 7 1 7.673 1 8.5V13.5C1 14.327 1.673 15 2.5 15H13.5C14.327 15 15 14.327 15 13.5V8.5C15 7.673 14.327 7 13.5 7ZM9 2.207L11.793 5H9.5C9.224 5 9 4.776 9 4.5V2.207ZM4 3C4 2.448 4.448 2 5 2H8V4.5C8 5.328 8.672 6 9.5 6H12V7H4V3ZM14 13.5C14 13.775 13.775 14 13.5 14H2.5C2.224 14 2 13.775 2 13.5V8.5C2 8.225 2.224 8 2.5 8H13.5C13.775 8 14 8.225 14 8.5V13.5Z"/><path d="M4.5 9H3.5C3.224 9 3 9.224 3 9.5V12.5C3 12.776 3.224 13 3.5 13C3.776 13 4 12.776 4 12.5V12H4.5C5.327 12 6 11.327 6 10.5C6 9.673 5.327 9 4.5 9ZM4.5 11H4V10H4.5C4.776 10 5 10.225 5 10.5C5 10.775 4.776 11 4.5 11Z"/><path d="M8 9H7.5C7.224 9 7 9.224 7 9.5V12.5C7 12.776 7.224 13 7.5 13H8C9.103 13 10 12.103 10 11C10 9.897 9.103 9 8 9ZM8 12V10C8.552 10 9 10.448 9 11C9 11.552 8.552 12 8 12Z"/><path d="M13 9H11.5C11.224 9 11 9.224 11 9.5V12.5C11 12.776 11.224 13 11.5 13C11.776 13 12 12.776 12 12.5V12H12.5C12.776 12 13 11.776 13 11.5C13 11.224 12.776 11 12.5 11H12V10H13C13.276 10 13.5 9.776 13.5 9.5C13.5 9.224 13.276 9 13 9Z"/></svg>`;
 
-function previewHtml(origin: string, mode: PreviewMode, modes: readonly PreviewMode[]): string {
+/**
+ * The panel around the preview frame. With `collection` (the folder's name)
+ * it shows a chunk run of the whole folder: no mode menu, but a Rebuild button.
+ */
+export function previewHtml(origin: string, mode: PreviewMode, modes: readonly PreviewMode[], collection?: string): string {
   const nonce = randomBytes(16).toString("base64");
   const csp = [
     `default-src 'none'`,
@@ -340,6 +393,12 @@ function previewHtml(origin: string, mode: PreviewMode, modes: readonly PreviewM
   const options = modes.map(
     (m) => `<option value="${m}"${m === mode ? " selected" : ""}>${m}</option>`
   ).join("");
+  const controls = collection === undefined
+    ? `<label>Output <select id="mode">${options}</select></label>
+  <button id="open" title="Open output in editor" aria-label="Open output in editor" disabled>${GO_TO_FILE}</button>
+  <button id="export" class="icon" title="Export PDF" aria-label="Export PDF"${mode === "typst" ? "" : " hidden"}>${FILE_PDF}</button>`
+    : `<span class="name" title="Every XML file directly in this folder, chunked as opm chunk does">${escapeHtml(collection)}</span>
+  <button id="rebuild" title="Chunk the collection again, with the saved files">Rebuild</button>`;
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -356,6 +415,7 @@ function previewHtml(origin: string, mode: PreviewMode, modes: readonly PreviewM
   button:disabled { opacity: .5; cursor: default; }
   .status { margin-left: auto; color: var(--vscode-descriptionForeground); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .status.busy::before { content: "⟳ "; }
+  .name { font-weight: 600; white-space: nowrap; }
   main { position: relative; flex: 1; min-height: 0; }
   iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; background: #fff; }
   .error { position: absolute; inset: 0; overflow: auto; padding: 12px 16px; background: var(--vscode-editor-background); }
@@ -366,15 +426,13 @@ function previewHtml(origin: string, mode: PreviewMode, modes: readonly PreviewM
 </head>
 <body>
 <div class="bar">
-  <label>Output <select id="mode">${options}</select></label>
-  <button id="open" title="Open output in editor" aria-label="Open output in editor" disabled>${GO_TO_FILE}</button>
-  <button id="export" class="icon" title="Export PDF" aria-label="Export PDF"${mode === "typst" ? "" : " hidden"}>${FILE_PDF}</button>
+  ${controls}
   <span class="status" id="status">Starting opm…</span>
 </div>
 <main>
   <iframe id="frame" title="opm output"></iframe>
   <div class="error" id="error" hidden>
-    <p><strong>opm could not transform this document.</strong> The preview shows the last good output once it can.</p>
+    <p><strong>opm could not ${collection === undefined ? "transform this document" : "chunk this collection"}.</strong> The preview shows the last good output once it can.</p>
     <pre id="message"></pre>
     <p><a id="log">Show the opm log</a> · <a id="restart">Restart opm</a></p>
   </div>
@@ -388,14 +446,17 @@ function previewHtml(origin: string, mode: PreviewMode, modes: readonly PreviewM
   /** Page of the chunk site on show, to reload in place on refresh. */
   let chunkPath = null;
   const UNSAVED = "Unsaved changes · chunk reads the saved file: save to update";
+  const on = (id, f) => { if ($(id)) $(id).onclick = f; };
 
-  $("open").onclick = () => vscode.postMessage({ type: "openOutput" });
-  $("export").onclick = () => vscode.postMessage({ type: "exportPdf" });
-  $("mode").onchange = (e) => {
+  on("open", () => vscode.postMessage({ type: "openOutput" }));
+  on("export", () => vscode.postMessage({ type: "exportPdf" }));
+  on("rebuild", () => vscode.postMessage({ type: "rebuild" }));
+  if ($("mode")) $("mode").onchange = (e) => {
     chunkPath = null;
     $("export").hidden = e.target.value !== "typst";
     vscode.postMessage({ type: "mode", mode: e.target.value });
   };
+  const took = (ms) => ms < 2000 ? ms + " ms" : (ms / 1000).toFixed(1) + " s";
   $("log").onclick = () => vscode.postMessage({ type: "log" });
   $("restart").onclick = () => vscode.postMessage({ type: "restart" });
 
@@ -412,7 +473,7 @@ function previewHtml(origin: string, mode: PreviewMode, modes: readonly PreviewM
       if (m.oddityPreview === "done") {
         if (mode === "chunk" && m.path) chunkPath = m.path;
         if (mode === "chunk" && stale) return;
-        setStatus("Up to date · " + elapsed + " ms" + (m.pages ? " · " + m.pages + " pages" : ""));
+        setStatus("Up to date · " + took(elapsed) + (m.pages ? " · " + m.pages + " pages" : ""));
       } else {
         setStatus(m.message || "Preview error");
       }
@@ -420,31 +481,36 @@ function previewHtml(origin: string, mode: PreviewMode, modes: readonly PreviewM
     }
     switch (m.type) {
       case "busy":
-        setStatus(hasOutput ? "Updating…" : "Transforming…", true);
+        setStatus(m.label || (hasOutput ? "Updating…" : "Transforming…"), true);
+        if ($("rebuild")) $("rebuild").disabled = true;
         break;
       case "show": {
         hasOutput = true;
         elapsed = m.elapsed;
+        if ($("rebuild")) $("rebuild").disabled = false;
         mode = m.mode;
         stale = !!m.dirty;
         $("error").hidden = true;
         // A chunk run is a folder of pages: nothing to open as one file
-        $("open").hidden = mode === "chunk";
-        $("open").disabled = false;
+        if ($("open")) {
+          $("open").hidden = mode === "chunk";
+          $("open").disabled = false;
+        }
         const url = new URL(m.url);
         // Stay on the chunk page being read, if it is still there
         if (mode === "chunk" && chunkPath) url.pathname = chunkPath;
         url.searchParams.set("v", m.v);
         frame.src = url.toString();
-        if (stale) setStatus(UNSAVED);
-        else setStatus(mode === "print" ? "Paginating…" : "Up to date · " + elapsed + " ms", mode === "print");
+        if (stale) setStatus(m.message || UNSAVED);
+        else setStatus(mode === "print" ? "Paginating…" : "Up to date · " + took(elapsed), mode === "print");
         break;
       }
       case "stale":
         stale = m.dirty;
-        if (stale) setStatus(UNSAVED);
+        if (stale) setStatus(m.message || UNSAVED);
         break;
       case "error":
+        if ($("rebuild")) $("rebuild").disabled = false;
         $("message").textContent = m.message;
         $("error").hidden = false;
         setStatus("Error");

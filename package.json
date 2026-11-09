@@ -33,7 +33,8 @@
   ],
   "activationEvents": [
     "onLanguage:xml",
-    "workspaceContains:**/*.odd"
+    "workspaceContains:**/*.odd",
+    "workspaceContains:**/opm.toml"
   ],
   "contributes": {
     "languages": [
@@ -143,6 +144,11 @@
         "icon": "$(open-preview)"
       },
       {
+        "command": "oddity.opmPreviewCollection",
+        "title": "Preview Collection with opm",
+        "category": "opm"
+      },
+      {
         "command": "oddity.opmRestart",
         "title": "Restart opm Preview Process",
         "category": "opm"
@@ -206,6 +212,11 @@
           "command": "oddity.opmPreview",
           "when": "resourceExtname == .xml",
           "group": "navigation"
+        },
+        {
+          "command": "oddity.opmPreviewCollection",
+          "when": "explorerResourceIsFolder && resourcePath in oddity.opmCollections",
+          "group": "navigation"
         }
       ],
       "editor/context": [
@@ -231,6 +242,10 @@
         }
       ],
       "commandPalette": [
+        {
+          "command": "oddity.opmPreviewCollection",
+          "when": "false"
+        },
         {
           "command": "oddity.opmMaximize",
           "when": "false"
