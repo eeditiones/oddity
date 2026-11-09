@@ -142,6 +142,14 @@ missing, ODDity offers to install it. ODDity looks for `opm` on the PATH and in
 `~/.local/bin`; set `oddity.opm.path`, or `oddity.opm.python` for an
 interpreter in a virtual environment, if it lives elsewhere.
 
+### Jinks template highlighting
+
+Files ending in `.tpl` are highlighted as
+[jinks](https://github.com/eeditiones/jinks-templates) templates: HTML with
+jinks expressions (`[[ … ]]`, `![[ … ]]`), statements (`[% … %]`), comments
+(`[# … #]`), raw sections and JSON front matter. `.css.tpl` files use CSS as
+the host language instead.
+
 ## Commands
 
 All commands are listed under the **ODD** category in the command palette

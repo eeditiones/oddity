@@ -1,0 +1,25 @@
+{
+  "$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
+  "name": "Jinks HTML",
+  "scopeName": "text.html.jinks",
+  "patterns": [
+    { "include": "#frontmatter" },
+    { "include": "text.html.basic" }
+  ],
+  "repository": {
+    "frontmatter": {
+      "begin": "^\\s*(---)(json)?\\s*$",
+      "beginCaptures": {
+        "1": { "name": "punctuation.definition.frontmatter.jinks" },
+        "2": { "name": "keyword.other.frontmatter.jinks" }
+      },
+      "end": "^\\s*(---)\\s*$",
+      "endCaptures": {
+        "1": { "name": "punctuation.definition.frontmatter.jinks" }
+      },
+      "name": "meta.frontmatter.jinks",
+      "contentName": "meta.embedded.block.json",
+      "patterns": [{ "include": "source.json" }]
+    }
+  }
+}

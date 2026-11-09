@@ -42,6 +42,55 @@
         "extensions": [
           ".odd"
         ]
+      },
+      {
+        "id": "jinks",
+        "aliases": [
+          "Jinks Template",
+          "jinks"
+        ],
+        "extensions": [
+          ".tpl"
+        ],
+        "configuration": "./syntaxes/jinks.language-configuration.json"
+      },
+      {
+        "id": "jinks-css",
+        "aliases": [
+          "Jinks CSS Template"
+        ],
+        "filenamePatterns": [
+          "*.css.tpl"
+        ],
+        "configuration": "./syntaxes/jinks.language-configuration.json"
+      }
+    ],
+    "grammars": [
+      {
+        "language": "jinks",
+        "scopeName": "text.html.jinks",
+        "path": "./syntaxes/jinks-html.tmLanguage.json",
+        "embeddedLanguages": {
+          "source.css": "css",
+          "source.js": "javascript",
+          "meta.embedded.block.json": "json"
+        }
+      },
+      {
+        "language": "jinks-css",
+        "scopeName": "source.css.jinks",
+        "path": "./syntaxes/jinks-css.tmLanguage.json",
+        "embeddedLanguages": {
+          "meta.embedded.block.json": "json"
+        }
+      },
+      {
+        "scopeName": "jinks.injection",
+        "path": "./syntaxes/jinks.injection.tmLanguage.json",
+        "injectTo": [
+          "text.html.jinks",
+          "source.css.jinks"
+        ]
       }
     ],
     "customEditors": [

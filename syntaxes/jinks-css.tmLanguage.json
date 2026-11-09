@@ -1,0 +1,9 @@
+{
+  "$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
+  "name": "Jinks CSS",
+  "scopeName": "source.css.jinks",
+  "patterns": [
+    { "include": "text.html.jinks#frontmatter" },
+    { "include": "source.css" }
+  ]
+}

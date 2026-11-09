@@ -1,0 +1,151 @@
+{
+  "$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
+  "name": "Jinks template tags",
+  "scopeName": "jinks.injection",
+  "injectionSelector": "L:text.html.jinks -comment.block.jinks -meta.raw.jinks -meta.embedded.expression.jinks -meta.tag.statement.jinks, L:source.css.jinks -comment.block.jinks -meta.raw.jinks -meta.embedded.expression.jinks -meta.tag.statement.jinks",
+  "patterns": [
+    { "include": "#comment" },
+    { "include": "#raw" },
+    { "include": "#statement" },
+    { "include": "#expression" }
+  ],
+  "repository": {
+    "comment": {
+      "begin": "\\[#",
+      "end": "#\\]",
+      "name": "comment.block.jinks",
+      "captures": {
+        "0": { "name": "punctuation.definition.comment.jinks" }
+      }
+    },
+    "raw": {
+      "begin": "(\\[%)\\s*(raw)\\s*(%\\])",
+      "beginCaptures": {
+        "1": { "name": "punctuation.section.embedded.begin.jinks" },
+        "2": { "name": "keyword.control.jinks" },
+        "3": { "name": "punctuation.section.embedded.end.jinks" }
+      },
+      "end": "(\\[%)\\s*(endraw)\\s*(%\\])",
+      "endCaptures": {
+        "1": { "name": "punctuation.section.embedded.begin.jinks" },
+        "2": { "name": "keyword.control.jinks" },
+        "3": { "name": "punctuation.section.embedded.end.jinks" }
+      },
+      "contentName": "meta.raw.jinks"
+    },
+    "statement": {
+      "begin": "\\[%",
+      "beginCaptures": {
+        "0": { "name": "punctuation.section.embedded.begin.jinks" }
+      },
+      "end": "%\\]",
+      "endCaptures": {
+        "0": { "name": "punctuation.section.embedded.end.jinks" }
+      },
+      "name": "meta.tag.statement.jinks",
+      "patterns": [
+        {
+          "match": "\\G\\s*(block|template!?)\\s+([\\w.-]+)(?:\\s+(\\d+))?",
+          "captures": {
+            "1": { "name": "keyword.control.jinks" },
+            "2": { "name": "entity.name.section.jinks" },
+            "3": { "name": "constant.numeric.jinks" }
+          }
+        },
+        {
+          "match": "\\G\\s*(if|elif|else|for|let|include|import|endif|endfor|endlet|endblock|endtemplate)(?![\\w-])",
+          "captures": {
+            "1": { "name": "keyword.control.jinks" }
+          }
+        },
+        { "include": "#xpath" }
+      ]
+    },
+    "expression": {
+      "begin": "(!?)(\\[\\[)",
+      "beginCaptures": {
+        "1": { "name": "keyword.operator.conditional.jinks" },
+        "2": { "name": "punctuation.section.embedded.begin.jinks" }
+      },
+      "end": "\\]\\]",
+      "endCaptures": {
+        "0": { "name": "punctuation.section.embedded.end.jinks" }
+      },
+      "name": "meta.embedded.expression.jinks",
+      "patterns": [{ "include": "#xpath" }]
+    },
+    "xpath": {
+      "patterns": [
+        {
+          "begin": "\\(:",
+          "end": ":\\)",
+          "name": "comment.block.xpath.jinks"
+        },
+        {
+          "begin": "\"",
+          "end": "\"(?!\")",
+          "name": "string.quoted.double.jinks",
+          "patterns": [{ "match": "\"\"", "name": "constant.character.escape.jinks" }]
+        },
+        {
+          "begin": "'",
+          "end": "'(?!')",
+          "name": "string.quoted.single.jinks",
+          "patterns": [{ "match": "''", "name": "constant.character.escape.jinks" }]
+        },
+        {
+          "match": "(?<![\\w-])\\d+(?:\\.\\d+)?(?:[eE][+-]?\\d+)?(?![\\w-])",
+          "name": "constant.numeric.jinks"
+        },
+        {
+          "match": "(\\$)([\\w.-]+(?::[\\w.-]+)?)",
+          "captures": {
+            "0": { "name": "variable.other.jinks" },
+            "1": { "name": "punctuation.definition.variable.jinks" }
+          }
+        },
+        {
+          "match": "(\\?)([\\w.-]+|\\*)",
+          "captures": {
+            "1": { "name": "punctuation.accessor.jinks" },
+            "2": { "name": "variable.other.property.jinks" }
+          }
+        },
+        {
+          "match": "(?<![\\w$?:.-])(if|then|else|for|let|in|return|some|every|satisfies|as|at|instance|of|cast|castable|treat|switch|case|default|typeswitch)(?![\\w:-])",
+          "name": "keyword.control.jinks"
+        },
+        {
+          "match": "(?<![\\w$?:.-])(and|or|not|div|idiv|mod|eq|ne|lt|le|gt|ge|is|to|union|intersect|except)(?![\\w:(-])",
+          "name": "keyword.operator.word.jinks"
+        },
+        {
+          "match": "(?<![\\w$?:.-])(map|array)(?=\\s*\\{)",
+          "name": "storage.type.jinks"
+        },
+        {
+          "match": "(?<![\\w$?:.-])([\\w.-]+(?::[\\w.-]+)?)\\s*(?=\\()",
+          "captures": {
+            "1": { "name": "entity.name.function.jinks" }
+          }
+        },
+        {
+          "begin": "\\[",
+          "end": "\\]",
+          "captures": {
+            "0": { "name": "punctuation.section.brackets.jinks" }
+          },
+          "patterns": [{ "include": "#xpath" }]
+        },
+        {
+          "match": "!=|<=|>=|=>|:=|\\|\\||<<|>>|[=<>!|+*/]|(?<=\\s)-(?=\\s)",
+          "name": "keyword.operator.jinks"
+        },
+        {
+          "match": "[(){},]",
+          "name": "punctuation.jinks"
+        }
+      ]
+    }
+  }
+}
