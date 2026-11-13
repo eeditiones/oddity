@@ -137,11 +137,11 @@ function findOnPath(name: string): string | undefined {
  * first of uv, pipx or pip that is available. Resolves true once an install
  * terminal has closed, so the caller can look for opm again.
  */
-export async function offerInstall(): Promise<boolean> {
+export async function offerInstall(feature = "The preview"): Promise<boolean> {
   const install = "Install opm";
   const settings = "Settings";
   const choice = await vscode.window.showWarningMessage(
-    "The preview needs opm (the Open Processing Model), which was not found.",
+    `${feature} needs opm (the Open Processing Model), which was not found.`,
     install,
     settings
   );

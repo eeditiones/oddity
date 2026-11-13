@@ -1,6 +1,9 @@
 import * as vscode from "vscode";
 
 /**
+ * Well-formedness errors come from oddity-language-server (source "oddity-ls",
+ * code "well-formedness"), or from Red Hat's XML extension if it is installed.
+ *
  * Well-formedness error codes reported by LemMinX ({@link XMLSyntaxErrorCode}).
  * Schema/DTD validation uses other codes (cvc-*, MSG_*, …) and is ignored here.
  *
@@ -62,6 +65,11 @@ export function isWellFormednessError(d: vscode.Diagnostic): boolean {
     return false;
   }
   const source = d.source ?? "";
+  // oddity-language-server
+  if (source === "oddity-ls") {
+    return diagnosticCode(d) === "well-formedness";
+  }
+  // Red Hat XML (LemMinX), when it is installed as well
   if (source === "XML.Syntax") {
     return true;
   }

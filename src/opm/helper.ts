@@ -37,6 +37,13 @@ interface Pending {
   progress?: (p: ChunkProgress) => void;
 }
 
+let channel: vscode.OutputChannel | undefined;
+
+/** The "ODDity: opm" output channel, shared by the preview and the opm commands. */
+export function opmLog(): vscode.OutputChannel {
+  return (channel ??= vscode.window.createOutputChannel("ODDity: opm"));
+}
+
 /**
  * The long-running Python process (media/opm_preview.py) that transforms
  * documents with opm. Started on the first request and restarted after it
@@ -48,7 +55,7 @@ export class OpmHelper implements vscode.Disposable {
   private nextId = 1;
   private offered = false;
   private readonly pending = new Map<number, Pending>();
-  readonly log = vscode.window.createOutputChannel("ODDity: opm");
+  readonly log = opmLog();
 
   constructor(private readonly context: vscode.ExtensionContext) {}
 
@@ -82,7 +89,6 @@ export class OpmHelper implements vscode.Disposable {
 
   dispose(): void {
     this.restart();
-    this.log.dispose();
   }
 
   private process(): Promise<ChildProcess | undefined> {

@@ -30,6 +30,13 @@ const webview = {
 
 // The print preview loads Paged.js from the extension's preview server
 fs.mkdirSync("dist", { recursive: true });
+
+// The language server runs in its own process: its bundle and default schemas
+// ship beside the extension (node_modules is not packaged).
+const server = "node_modules/oddity-language-server";
+fs.copyFileSync(`${server}/dist/node.cjs`, "dist/server.js");
+fs.rmSync("dist/schema", { recursive: true, force: true });
+fs.cpSync(`${server}/schema`, "dist/schema", { recursive: true });
 fs.copyFileSync(
   "node_modules/pagedjs/dist/paged.polyfill.min.js",
   "dist/paged.polyfill.min.js"

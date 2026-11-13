@@ -1,24 +1,24 @@
 import * as vscode from "vscode";
-import { OddDocumentSymbolProvider } from "./oddOutline";
 import { registerAddElementSpec } from "./addElementSpec";
 import { OddEditorProvider } from "./oddEditorProvider";
 import { registerFindElementSpec } from "./findElementSpec";
 import { registerOpenGraphicalEditorAtElementSpec } from "./openGraphicalEditorAtElementSpec";
 import { registerRecompileOdd } from "./recompileOdd";
-import { ensureSchemaBinding } from "./schemaBinding";
+import { removeLegacySchemaBinding } from "./legacySchemaBinding";
 import { registerOpmPreview } from "./opm/previewPanel";
-
-const ODD_SELECTOR: vscode.DocumentSelector = {
-  language: "xml",
-  pattern: "**/*.odd",
-};
+import { opmLog } from "./opm/helper";
+import { startXmlLanguageClient, stopXmlLanguageClient } from "./xmlLanguageClient";
+import { registerAutoCloseTags } from "./autoCloseTags";
+import { registerSchemaCommands } from "./schemaCommands";
+import { registerXmlElementCommands } from "./xmlElementCommands";
 
 export function activate(context: vscode.ExtensionContext): void {
   context.subscriptions.push(
-    vscode.languages.registerDocumentSymbolProvider(
-      ODD_SELECTOR,
-      new OddDocumentSymbolProvider()
-    ),
+    startXmlLanguageClient(context),
+    registerAutoCloseTags(),
+    registerSchemaCommands(context),
+    registerXmlElementCommands(),
+    opmLog(),
     registerAddElementSpec(context),
     registerRecompileOdd(context),
     registerFindElementSpec(context),
@@ -42,30 +42,12 @@ export function activate(context: vscode.ExtensionContext): void {
     })
   );
 
-  const bind = () =>
-    ensureSchemaBinding(context).catch((err) =>
-      console.error("[ODDity] schema binding failed:", err)
-    );
-
-  bind();
-
-  context.subscriptions.push(
-    vscode.workspace.onDidOpenTextDocument((doc) => {
-      if (doc.fileName.endsWith(".odd")) {
-        bind();
-      }
-    }),
-    vscode.workspace.onDidChangeConfiguration((e) => {
-      if (
-        e.affectsConfiguration("oddity.autoBindSchema") ||
-        e.affectsConfiguration("oddTools.autoBindSchema")
-      ) {
-        bind();
-      }
-    })
+  // Until 0.6 ODDity bound an XSD to .odd files through Red Hat's xml.fileAssociations
+  removeLegacySchemaBinding().catch((err) =>
+    console.error("[ODDity] removing the old schema binding failed:", err)
   );
 }
 
-export function deactivate(): void {
-  // no-op
+export function deactivate(): Thenable<void> | undefined {
+  return stopXmlLanguageClient();
 }

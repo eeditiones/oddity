@@ -1,7 +1,7 @@
 {
   "name": "oddity",
   "displayName": "ODDity",
-  "description": "Authoring support for ODD files: an ODD-aware outline and graphical editor for TEI Processing Model output transformations.",
+  "description": "Companion to TEI Publisher and opm: author TEI and other XML with schema-aware checking and suggestions, write presentation rules in ODD following the TEI Processing Model, and preview the result.",
   "version": "0.6.0",
   "publisher": "e-editiones",
   "repository": {
@@ -15,7 +15,7 @@
   "license": "GPL-3.0-or-later",
   "icon": "media/oddity_icon.png",
   "engines": {
-    "vscode": "^1.84.0"
+    "vscode": "^1.91.0"
   },
   "categories": [
     "Programming Languages",
@@ -28,9 +28,6 @@
     "TEI Publisher"
   ],
   "main": "./dist/extension.js",
-  "extensionDependencies": [
-    "redhat.vscode-xml"
-  ],
   "activationEvents": [
     "onLanguage:xml",
     "workspaceContains:**/*.odd",
@@ -110,60 +107,91 @@
       {
         "command": "oddity.openGraphicalEditor",
         "title": "Open Graphical Editor",
-        "category": "ODD",
+        "category": "ODDity",
         "icon": "$(symbol-structure)"
       },
       {
         "command": "oddity.addElementSpec",
         "title": "Add <elementSpec>",
-        "category": "ODD",
+        "category": "ODDity",
         "icon": "$(add)"
       },
       {
         "command": "oddity.recompileOdd",
         "title": "Recompile ODD on server",
-        "category": "ODD",
+        "category": "ODDity",
         "icon": "$(sync)"
       },
       {
         "command": "oddity.findElementSpec",
         "title": "Go to elementSpec",
-        "category": "ODD",
+        "category": "ODDity",
         "icon": "$(search)"
       },
       {
         "command": "oddity.openGraphicalEditorAtElementSpec",
         "title": "Open elementSpec in Graphical Editor",
-        "category": "ODD",
+        "category": "ODDity",
         "icon": "$(symbol-structure)"
       },
       {
         "command": "oddity.opmPreview",
         "title": "Open opm Preview to the Side",
-        "category": "opm",
+        "category": "ODDity",
         "icon": "$(open-preview)"
       },
       {
         "command": "oddity.opmPreviewCollection",
         "title": "Preview Collection with opm",
-        "category": "opm"
+        "category": "ODDity"
       },
       {
         "command": "oddity.opmRestart",
         "title": "Restart opm Preview Process",
-        "category": "opm"
+        "category": "ODDity"
       },
       {
         "command": "oddity.opmMaximize",
         "title": "Maximize Preview",
-        "category": "opm",
+        "category": "ODDity",
         "icon": "$(screen-full)"
       },
       {
         "command": "oddity.opmRestore",
         "title": "Restore Editor Layout",
-        "category": "opm",
+        "category": "ODDity",
         "icon": "$(screen-normal)"
+      },
+      {
+        "command": "oddity.compileOddToRng",
+        "title": "Compile ODD to RELAX NG",
+        "category": "ODDity",
+        "icon": "$(file-binary)"
+      },
+      {
+        "command": "oddity.associateSchema",
+        "title": "Associate with Schema…",
+        "category": "ODDity"
+      },
+      {
+        "command": "oddity.surroundWithElement",
+        "title": "Surround with Element…",
+        "category": "ODDity"
+      },
+      {
+        "command": "oddity.selectElement",
+        "title": "Select Element",
+        "category": "ODDity"
+      },
+      {
+        "command": "oddity.splitElement",
+        "title": "Split Element",
+        "category": "ODDity"
+      },
+      {
+        "command": "oddity.removeElementTags",
+        "title": "Remove Element Tags",
+        "category": "ODDity"
       }
     ],
     "keybindings": [
@@ -172,6 +200,30 @@
         "key": "ctrl+f",
         "mac": "cmd+f",
         "when": "activeCustomEditorId == oddity.graphicalEditor"
+      },
+      {
+        "command": "oddity.surroundWithElement",
+        "key": "ctrl+e",
+        "mac": "cmd+e",
+        "when": "editorTextFocus && editorLangId == xml && !editorReadonly"
+      },
+      {
+        "command": "oddity.selectElement",
+        "key": "ctrl+alt+e",
+        "mac": "cmd+alt+e",
+        "when": "editorTextFocus && editorLangId == xml"
+      },
+      {
+        "command": "oddity.splitElement",
+        "key": "ctrl+shift+enter",
+        "mac": "cmd+shift+enter",
+        "when": "editorTextFocus && editorLangId == xml && !editorReadonly"
+      },
+      {
+        "command": "oddity.removeElementTags",
+        "key": "ctrl+shift+x",
+        "mac": "cmd+shift+x",
+        "when": "editorTextFocus && editorLangId == xml && !editorReadonly"
       }
     ],
     "menus": {
@@ -217,6 +269,16 @@
           "command": "oddity.opmPreviewCollection",
           "when": "explorerResourceIsFolder && resourcePath in oddity.opmCollections",
           "group": "navigation"
+        },
+        {
+          "command": "oddity.compileOddToRng",
+          "when": "resourceExtname == .odd",
+          "group": "7_schema"
+        },
+        {
+          "command": "oddity.associateSchema",
+          "when": "resourceExtname == .xml",
+          "group": "7_schema"
         }
       ],
       "editor/context": [
@@ -238,6 +300,21 @@
         {
           "command": "oddity.recompileOdd",
           "when": "resourceExtname == .odd && oddity.canRecompileOdd",
+          "group": "1_modification"
+        },
+        {
+          "command": "oddity.compileOddToRng",
+          "when": "resourceExtname == .odd && editorLangId == xml",
+          "group": "1_modification"
+        },
+        {
+          "command": "oddity.associateSchema",
+          "when": "resourceExtname == .xml && editorLangId == xml",
+          "group": "1_modification"
+        },
+        {
+          "submenu": "oddity.element",
+          "when": "editorLangId == xml",
           "group": "1_modification"
         }
       ],
@@ -277,17 +354,54 @@
         {
           "command": "oddity.opmPreview",
           "when": "resourceExtname == .xml && oddity.inOpmProject"
+        },
+        {
+          "command": "oddity.compileOddToRng",
+          "when": "resourceExtname == .odd"
+        },
+        {
+          "command": "oddity.associateSchema",
+          "when": "editorLangId == xml && resourceExtname != .odd"
+        },
+        {
+          "command": "oddity.surroundWithElement",
+          "when": "editorLangId == xml"
+        },
+        {
+          "command": "oddity.selectElement",
+          "when": "editorLangId == xml"
+        },
+        {
+          "command": "oddity.splitElement",
+          "when": "editorLangId == xml"
+        },
+        {
+          "command": "oddity.removeElementTags",
+          "when": "editorLangId == xml"
+        }
+      ],
+      "oddity.element": [
+        {
+          "command": "oddity.surroundWithElement",
+          "group": "1_element@1"
+        },
+        {
+          "command": "oddity.selectElement",
+          "group": "1_element@2"
+        },
+        {
+          "command": "oddity.splitElement",
+          "group": "1_element@3"
+        },
+        {
+          "command": "oddity.removeElementTags",
+          "group": "1_element@4"
         }
       ]
     },
     "configuration": {
       "title": "ODDity",
       "properties": {
-        "oddity.autoBindSchema": {
-          "type": "boolean",
-          "default": true,
-          "markdownDescription": "Automatically bind the bundled `teipublisher_odds.xsd` schema to `.odd` files (via `xml.fileAssociations`) when they do not already reference a resolvable schema through an `xml-model` processing instruction."
-        },
         "oddity.editorFontSize": {
           "type": "number",
           "default": 0,
@@ -306,7 +420,13 @@
         },
         "oddity.opm.defaultMode": {
           "type": "string",
-          "enum": ["web", "print", "markdown", "chunk", "typst"],
+          "enum": [
+            "web",
+            "print",
+            "markdown",
+            "chunk",
+            "typst"
+          ],
           "default": "web",
           "markdownDescription": "Output mode a new opm preview starts with. `typst` needs the typst command; without it the preview starts with `web`."
         },
@@ -314,22 +434,25 @@
           "type": "string",
           "default": "",
           "markdownDescription": "Path of the `typst` command, for the preview's typst mode. Empty: `typst` on the PATH, or in `/opt/homebrew/bin`, `/usr/local/bin`, `~/.cargo/bin` or `~/.local/bin`."
+        },
+        "oddity.xml.autoCloseTags": {
+          "type": "boolean",
+          "default": true,
+          "markdownDescription": "Insert the end tag when a start tag is finished with `>`, and complete `</` with the name of the open element."
         }
       }
     },
     "configurationDefaults": {
-      "xml.symbols.filters": [
-        {
-          "pattern": "**/*.odd",
-          "expressions": [
-            {
-              "xpath": "//*",
-              "excluded": true
-            }
-          ]
-        }
-      ]
-    }
+      "[xml]": {
+        "editor.linkedEditing": true
+      }
+    },
+    "submenus": [
+      {
+        "id": "oddity.element",
+        "label": "Element"
+      }
+    ]
   },
   "scripts": {
     "vscode:prepublish": "npm run package",
@@ -351,13 +474,15 @@
     "@codemirror/state": "^6.6.0",
     "@codemirror/view": "^6.43.1",
     "@types/node": "^20.11.0",
-    "@types/vscode": "^1.84.0",
+    "@types/vscode": "~1.91.0",
     "@vscode/codicons": "^0.0.45",
     "esbuild": "^0.20.0",
     "lit": "^3.3.3",
     "marked": "^15.0.12",
     "marked-footnote": "^1.4.0",
+    "oddity-language-server": "file:../oddity-language-server",
     "pagedjs": "^0.4.3",
-    "typescript": "^5.4.0"
+    "typescript": "^5.4.0",
+    "vscode-languageclient": "^11.0.0"
   }
 }
