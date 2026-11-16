@@ -117,9 +117,11 @@ async function recompileOdd(uri?: vscode.Uri): Promise<void> {
           headers: { Authorization: `Basic ${auth}` },
         });
       } catch (err) {
-        const msg = err instanceof Error ? err.message : String(err);
+        // Node's fetch only says "fetch failed"; the cause names the problem (ECONNREFUSED, …)
+        const cause = err instanceof Error ? (err.cause as { code?: string; message?: string } | undefined) : undefined;
+        const msg = cause?.code ?? cause?.message ?? (err instanceof Error ? err.message : String(err));
         vscode.window.showErrorMessage(
-          `Could not reach TEI Publisher at ${ctx.appBase}: ${msg}`
+          `Could not reach eXist-db at ${ctx.appBase}. Is the server running? (${msg})`
         );
         return;
       }
@@ -133,9 +135,22 @@ async function recompileOdd(uri?: vscode.Uri): Promise<void> {
         return;
       }
 
-      if (!response.ok) {
+      // Without the app, eXist hands the POST to its REST interface, which tries to read the
+      // empty body as XML and answers 400 "SAX exception while parsing request"
+      const noApp =
+        response.status === 404 ||
+        (response.status === 400 && /SAX exception while parsing request/i.test(body));
+      if (noApp) {
         vscode.window.showErrorMessage(
-          `Recompile failed (${response.status}): ${body.slice(0, 200)}`
+          `No TEI Publisher app answers at ${ctx.appBase}. Check that the app is installed in eXist-db and that "root" in .existdb.json points to it.`
+        );
+        return;
+      }
+
+      if (!response.ok) {
+        const detail = stripHtml(body).slice(0, 200);
+        vscode.window.showErrorMessage(
+          `Recompile failed (${response.status} ${response.statusText})${detail ? `: ${detail}` : ""}`
         );
         return;
       }
