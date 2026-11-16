@@ -1,7 +1,7 @@
 import { execFile } from "child_process";
 import * as path from "path";
 import * as vscode from "vscode";
-import { relativeHref, setToml, unsetToml, xmlModelEdits } from "oddity-language-server/edit";
+import { PUBLIC_SCHEMA_URLS, relativeHref, setToml, unsetToml, xmlModelEdits } from "oddity-language-server/edit";
 import { findOpmProject } from "./opm/project";
 import { locatePython, offerInstall } from "./opm/locate";
 import { opmLog } from "./opm/helper";
@@ -109,10 +109,15 @@ async function associateSchema(
       picks.push({ label: path.basename(rng.fsPath), description: path.relative(root, path.dirname(rng.fsPath)) || ".", target: rng });
     }
   }
-  const teiAll = vscode.Uri.file(context.asAbsolutePath(path.join("dist", "schema", "tei", "tei_all.rng")));
+  // bundled schemas are named by their public URL, which the server maps to its own copy:
+  // a path into the extension's folder would break with the next update
+  const bundled = (vocabulary: string) => vscode.Uri.parse(PUBLIC_SCHEMA_URLS[vocabulary]);
   picks.push(
+    { label: "Bundled", kind: vscode.QuickPickItemKind.Separator, target: null },
+    { label: "tei_all.rng", description: "TEI P5, all modules", target: bundled("tei") },
+    { label: "docbook.rng", description: "DocBook 5.2", target: bundled("docbook") },
+    { label: "JATS-archivearticle1-3-mathml3.rng", description: "JATS 1.3 Archiving, with MathML 3", target: bundled("jats") },
     { label: "", kind: vscode.QuickPickItemKind.Separator, target: null },
-    { label: "tei_all.rng", description: "TEI P5, all modules (bundled)", target: teiAll },
     { label: "$(close) Remove association", target: null }
   );
   if (preselect) {

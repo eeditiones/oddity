@@ -6,6 +6,7 @@ import {
   type LanguageClientOptions,
   type ServerOptions,
 } from "vscode-languageclient/node";
+import { DEFAULT_SCHEMA_FILES } from "oddity-language-server/edit";
 
 /** The schema the server chose for a document (oddity-language-server's SchemaChoice). */
 interface SchemaChoice {
@@ -37,10 +38,13 @@ export function startXmlLanguageClient(context: vscode.ExtensionContext): vscode
       ],
     },
     initializationOptions: {
-      defaultSchemas: {
-        odd: vscode.Uri.joinPath(schemas, "odd", "teipublisher_odds.rng").toString(),
-        tei: vscode.Uri.joinPath(schemas, "tei", "tei_all.rng").toString(),
-      },
+      // ODDs, TEI, DocBook and JATS documents without a schema of their own
+      defaultSchemas: Object.fromEntries(
+        Object.entries(DEFAULT_SCHEMA_FILES).map(([vocabulary, file]) => [
+          vocabulary,
+          vscode.Uri.joinPath(schemas, ...file.split("/")).toString(),
+        ])
+      ),
     },
   };
   client = new LanguageClient("oddity.xml", "ODDity XML", serverOptions, clientOptions);

@@ -56,8 +56,10 @@ Where ODDity knows the encoding rules that apply to a document, it also checks
 whether the encoding follows them: an element in the wrong place, a required
 element that is missing, an attribute value that is not allowed. These rules
 come from a *schema*, a file (ending in `.rng`) that describes which elements
-may appear where. For TEI documents, ODDity uses the full TEI rules unless your
-project has its own (see below).
+may appear where. ODDity comes with the rules of three common formats and
+recognises documents in them by themselves: TEI (all of TEI P5), DocBook 5.2 and
+JATS 1.3 (the Archiving tag set, with MathML). For TEI documents, it uses the full
+TEI rules unless your project has its own (see below).
 
 ODDity understands schemas written in RELAX NG (files ending in `.rng`), the
 format TEI and opm produce. Other kinds of schema, such as a DTD or an XML Schema
@@ -101,9 +103,13 @@ ODDity looks, in this order, for
 2. the schema set for the whole project, under `[editor] schema` in its
    `opm.toml` file (this is what **Associate with Schema…** sets for all
    documents; opm studio uses the same setting);
-3. the full TEI rules for TEI documents, and TEI Publisher's rules for writing
-   ODDs for `.odd` files. Both come with ODDity.
+3. the rules that come with ODDity: TEI Publisher's rules for writing ODDs for
+   `.odd` files, and the TEI, DocBook or JATS rules for documents recognised as
+   one of those.
 
+Schemas on your computer are always read from there. A schema named by its web
+address is only used if it is one of those that come with ODDity, such as the
+TEI's `tei_all.rng`; ODDity then uses its own copy instead of downloading it.
 Other XML files are only checked for well-formedness.
 
 </details>
@@ -289,8 +295,9 @@ Press <kbd>F5</kbd> to start a development instance of VS Code with the extensio
 Checking, suggestions, the outline and the element commands come from
 [oddity-language-server](https://github.com/eeditiones/oddity-language-server),
 which ODDity shares with opm studio. The build copies the server and its bundled
-schemas (`teipublisher_odds.rng`, `tei_all.rng`) into `dist/`; regenerate the
-schemas in that package with `npm run schemas`.
+schemas (`teipublisher_odds`, `tei_all`, DocBook 5.2, JATS 1.3 Archiving) into
+`dist/`; regenerate the schemas in that package with `npm run schemas`. Their
+sources and licences are listed in the package's `schema/README.md`.
 
 `schemas/teipublisher.odd` is the fallback parent ODD that **Add
 &lt;elementSpec&gt;** copies from when the ODD a project builds on cannot be found.
