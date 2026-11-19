@@ -1,7 +1,7 @@
 import { execFile } from "child_process";
 import * as path from "path";
 import * as vscode from "vscode";
-import { PUBLIC_SCHEMA_URLS, relativeHref, setToml, unsetToml, xmlModelEdits } from "oddity-language-server/edit";
+import { PUBLIC_SCHEMA_URLS, relativeHref, setToml, unsetToml, xmlModelEdits } from "@teipublisher/oddity-language-server/edit";
 import { findOpmProject } from "./opm/project";
 import { locatePython, offerInstall } from "./opm/locate";
 import { opmLog } from "./opm/helper";

@@ -33,7 +33,7 @@ fs.mkdirSync("dist", { recursive: true });
 
 // The language server runs in its own process: its bundle and default schemas
 // ship beside the extension (node_modules is not packaged).
-const server = "node_modules/oddity-language-server";
+const server = "node_modules/@teipublisher/oddity-language-server";
 fs.copyFileSync(`${server}/dist/node.cjs`, "dist/server.js");
 fs.rmSync("dist/schema", { recursive: true, force: true });
 fs.cpSync(`${server}/schema`, "dist/schema", { recursive: true });

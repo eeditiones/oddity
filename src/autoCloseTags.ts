@@ -1,5 +1,5 @@
 import * as vscode from "vscode";
-import { closeTagAt } from "oddity-language-server/edit";
+import { closeTagAt } from "@teipublisher/oddity-language-server/edit";
 
 /**
  * Close tags as they are typed in XML: after the `>` of a start tag insert its

@@ -5,7 +5,7 @@ import {
   splitElement,
   surroundWithElement,
   type ElementEdit,
-} from "oddity-language-server/edit";
+} from "@teipublisher/oddity-language-server/edit";
 import { allowedElements, type AllowedElement } from "./xmlLanguageClient";
 
 /**

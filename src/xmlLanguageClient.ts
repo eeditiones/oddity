@@ -6,7 +6,7 @@ import {
   type LanguageClientOptions,
   type ServerOptions,
 } from "vscode-languageclient/node";
-import { DEFAULT_SCHEMA_FILES } from "oddity-language-server/edit";
+import { DEFAULT_SCHEMA_FILES } from "@teipublisher/oddity-language-server/edit";
 
 /** The schema the server chose for a document (oddity-language-server's SchemaChoice). */
 interface SchemaChoice {
