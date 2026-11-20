@@ -241,6 +241,7 @@ export class OddEditorProvider implements vscode.CustomTextEditorProvider {
             type: "selectIdent",
             ident: pending.ident,
             index: pending.index,
+            modelPath: pending.modelPath,
           });
         }
         return;

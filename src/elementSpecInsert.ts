@@ -28,7 +28,7 @@ export interface InsertElementSpecResult {
 export async function insertElementSpec(
   context: vscode.ExtensionContext,
   document: vscode.TextDocument,
-  options: { ident?: string; cursorOffset?: number } = {}
+  options: { ident?: string; cursorOffset?: number; parent?: ResolvedParent } = {}
 ): Promise<InsertElementSpecResult | undefined> {
   const text = document.getText();
   const model = parseOdd(text);
@@ -42,9 +42,11 @@ export async function insertElementSpec(
   const defined = new Set(
     model.elementSpecs.map((s) => s.ident).filter((id): id is string => !!id)
   );
-  const parent = model.meta.source
-    ? await resolveParentOdd(document, model.meta.source, context)
-    : undefined;
+  const parent =
+    options.parent ??
+    (model.meta.source
+      ? await resolveParentOdd(document, model.meta.source, context)
+      : undefined);
 
   const choice = options.ident
     ? resolveIdentChoice(options.ident, defined, parent)

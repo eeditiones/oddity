@@ -32,8 +32,23 @@ export interface ChunkProgress {
   total: number;
 }
 
+/** Which ODD model handled each element (media/opm_preview.py, mode "trace"). */
+export interface TraceReply {
+  ok: true;
+  channel: string;
+  /** The project's ODD for this channel. */
+  odd: string | null;
+  /** ODD files by the name the models table's `source` uses. */
+  sources: Record<string, string>;
+  /** [xpath, element, model, behaviour, suppressed], in document order. */
+  records: [string, string, string | null, string | null, boolean][];
+  models: Record<string, { element: string; behaviour?: string; predicate?: string; desc?: string; source?: string; output?: string }>;
+}
+
+export type TraceResult = TraceReply | { ok: false; error: string; traceback?: string };
+
 interface Pending {
-  resolve: (r: TransformResult) => void;
+  resolve: (r: any) => void;
   progress?: (p: ChunkProgress) => void;
 }
 
@@ -59,7 +74,16 @@ export class OpmHelper implements vscode.Disposable {
 
   constructor(private readonly context: vscode.ExtensionContext) {}
 
-  async transform(req: TransformRequest, progress?: (p: ChunkProgress) => void): Promise<TransformResult> {
+  transform(req: TransformRequest, progress?: (p: ChunkProgress) => void): Promise<TransformResult> {
+    return this.send(req, progress);
+  }
+
+  /** Record which model handles each element of `text` in the output channel `channel`. */
+  trace(req: { root: string; file: string; text: string; channel: string }): Promise<TraceResult> {
+    return this.send({ ...req, mode: "trace" });
+  }
+
+  private async send<R>(req: object, progress?: (p: ChunkProgress) => void): Promise<R | { ok: false; error: string }> {
     const proc = await this.process();
     if (!proc?.stdin) {
       return {
@@ -120,7 +144,7 @@ export class OpmHelper implements vscode.Disposable {
     proc.stderr?.setEncoding("utf8");
     proc.stderr?.on("data", (chunk: string) => this.log.append(chunk));
     readline.createInterface({ input: proc.stdout! }).on("line", (line) => {
-      let reply: { id?: number; progress?: ChunkProgress } & TransformResult;
+      let reply: { id?: number; progress?: ChunkProgress };
       try {
         reply = JSON.parse(line);
       } catch {

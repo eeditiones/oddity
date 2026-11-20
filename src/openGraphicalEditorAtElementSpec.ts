@@ -1,6 +1,7 @@
 import * as vscode from "vscode";
 import { findElementSpecAtOffset } from "./elementSpecInsert";
 import {
+  ElementSpecSelection,
   getOddEditorPanel,
   setPendingElementSpecSelection,
 } from "./oddEditorPanels";
@@ -65,22 +66,28 @@ export async function openGraphicalEditorAtElementSpec(): Promise<void> {
     return;
   }
 
-  const selection = { ident: hit.spec.ident, index: hit.index };
-  const existing = getOddEditorPanel(document.uri);
+  await revealInGraphicalEditor(document.uri, { ident: hit.spec.ident, index: hit.index });
+}
+
+/**
+ * Show an elementSpec (and optionally one of its models) in the graphical
+ * editor of `uri`, opening the editor beside the active one if needed.
+ */
+export async function revealInGraphicalEditor(
+  uri: vscode.Uri,
+  selection: ElementSpecSelection
+): Promise<void> {
+  const existing = getOddEditorPanel(uri);
   if (existing) {
     existing.panel.reveal();
-    existing.panel.webview.postMessage({
-      type: "selectIdent",
-      ident: hit.spec.ident,
-      index: hit.index,
-    });
+    existing.panel.webview.postMessage({ type: "selectIdent", ...selection });
     return;
   }
 
-  setPendingElementSpecSelection(document.uri, selection);
+  setPendingElementSpecSelection(uri, selection);
   await vscode.commands.executeCommand(
     "vscode.openWith",
-    document.uri,
+    uri,
     OddEditorProvider.viewType,
     vscode.ViewColumn.Beside
   );

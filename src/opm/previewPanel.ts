@@ -13,6 +13,22 @@ import { PreviewServer } from "./server";
 
 const DEBOUNCE_MS = 400;
 
+/** The output mode of each open preview, by document URI. */
+const openModes = new Map<string, PreviewMode>();
+
+/**
+ * The output mode the preview of `uri` shows, or else the configured default
+ * one: which channel "Show ODD Rule" records.
+ */
+export function previewModeFor(uri: vscode.Uri): PreviewMode {
+  const open = openModes.get(uri.toString());
+  if (open) {
+    return open;
+  }
+  const configured = vscode.workspace.getConfiguration("oddity.opm").get("defaultMode");
+  return isPreviewMode(configured) ? configured : "web";
+}
+
 /**
  * "Open opm Preview to the Side": a panel beside an XML file of an opm
  * project showing it transformed by opm, refreshed while you type and
@@ -21,8 +37,7 @@ const DEBOUNCE_MS = 400;
  * file, so it refreshes on save only. The typst mode, offered when the typst
  * command is found, shows the pages Typst compiles, as SVG images.
  */
-export function registerOpmPreview(context: vscode.ExtensionContext): vscode.Disposable {
-  const helper = new OpmHelper(context);
+export function registerOpmPreview(context: vscode.ExtensionContext, helper: OpmHelper): vscode.Disposable {
   const server = new PreviewServer(context.extensionPath);
   const outputs = new OutputDocuments();
   const panels = new Map<string, OpmPreview>();
@@ -56,7 +71,6 @@ export function registerOpmPreview(context: vscode.ExtensionContext): vscode.Dis
     watcher.onDidDelete(updateFolders),
     vscode.workspace.onDidChangeWorkspaceFolders(updateFolders),
     { dispose: () => clearTimeout(scan) },
-    helper,
     server,
     outputs,
     vscode.window.onDidChangeActiveTextEditor(updateContext),
@@ -159,6 +173,7 @@ class OpmPreview {
       light: vscode.Uri.joinPath(context.extensionUri, "media", "oddity_icon_light.svg"),
       dark: vscode.Uri.joinPath(context.extensionUri, "media", "oddity_icon_dark.svg"),
     };
+    openModes.set(doc.uri.toString(), this.mode);
     void this.render();
 
     this.subs.push(
@@ -206,6 +221,7 @@ class OpmPreview {
     }
     if (!this.typst && this.mode === "typst") {
       this.mode = "web";
+      openModes.set(this.doc.uri.toString(), this.mode);
     }
     void this.render();
   }
@@ -216,6 +232,7 @@ class OpmPreview {
 
   dispose(): void {
     clearTimeout(this.timer);
+    openModes.delete(this.doc.uri.toString());
     this.server.remove(this.id);
     this.outputs.forget(this.id);
     fs.rm(this.tmpDir, { recursive: true, force: true }, () => undefined);
@@ -231,6 +248,7 @@ class OpmPreview {
       void this.refresh();
     } else if (msg.type === "mode" && isPreviewMode(msg.mode)) {
       this.mode = msg.mode;
+      openModes.set(this.doc.uri.toString(), this.mode);
       void this.refresh();
     } else if (msg.type === "openOutput" && this.output) {
       const { mode, text } = this.output;

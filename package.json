@@ -435,6 +435,11 @@
           "default": "",
           "markdownDescription": "Path of the `typst` command, for the preview's typst mode. Empty: `typst` on the PATH, or in `/opt/homebrew/bin`, `/usr/local/bin`, `~/.cargo/bin` or `~/.local/bin`."
         },
+        "oddity.opm.ruleHover": {
+          "type": "boolean",
+          "default": true,
+          "markdownDescription": "Hovering an element name in an XML file of an opm project shows which ODD model processes it, in the output mode of the file's preview (else `#oddity.opm.defaultMode#`)."
+        },
         "oddity.xml.autoCloseTags": {
           "type": "boolean",
           "default": true,

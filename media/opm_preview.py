@@ -19,6 +19,9 @@
 # {"id": 1, "progress": {"doc": 2, "docs": 5, "name": "b.xml", "done": 3, "total": 12}}
 # (total is 0 until the chunker knows it).
 #
+# Mode "trace" takes "channel" and replies which ODD model handled each
+# element; see _trace.
+#
 # Mode "typst" also takes "typst" (the typst command) and "out" (a directory),
 # compiles the Typst output to one SVG per page there, and replies
 # {"id": 1, "ok": true, "output": "<typst source>", "dir": "/out",
@@ -106,6 +109,63 @@ def _transform(req: dict) -> dict:
     if isinstance(output, bytes):
         output = output.decode('utf-8', errors='replace')
     return {'ok': True, 'output': output, 'assets': _assets(project, mode)}
+
+
+def _trace(req: dict) -> dict:
+    """Which ODD model processed each element, as `opm transform -t json` records it.
+
+    "channel" names the output channel to record (web, print, …). Replies
+    {"ok": true, "channel": "web", "odd": "/abs/main.odd",
+     "sources": {"teipublisher.odd": "/abs/teipublisher.odd", …},
+     "records": [[xpath, element, model, behaviour, suppressed], …],
+     "models": {"tei-head16": {"predicate": …, "desc": …, "source": …}, …}}
+    with the records in document order. "sources" maps the ODD names the
+    models table uses to files, along the chain of schemaSpec/@source.
+    """
+    channel = req.get('channel') or 'web'
+    mode = 'json' if channel == 'web' else f'json-{channel}'
+    project, output = _run_transform(req, mode)
+    if isinstance(output, bytes):
+        output = output.decode('utf-8', errors='replace')
+    data = json.loads(output)
+    records: list = []
+
+    def walk(nodes: list) -> None:
+        for node in nodes:
+            if not isinstance(node, dict):
+                continue
+            if node.get('xpath'):
+                records.append([node['xpath'], node.get('element'), node.get('model'),
+                                node.get('behaviour'), bool(node.get('suppressed'))])
+            walk(node.get('children') or [])
+
+    walk(data.get('document') or [])
+    odd = project.config.odd_for_type(mode)
+    if odd is not None and not odd.is_absolute():
+        odd = Path(req['root']) / odd
+    return {'ok': True, 'channel': channel, 'odd': str(odd) if odd else None,
+            'sources': _odd_chain(odd) if odd else {}, 'records': records,
+            'models': data.get('models') or {}}
+
+
+def _odd_chain(odd: Path) -> dict[str, str]:
+    """The ODD and those it inherits from (schemaSpec/@source), by file name."""
+    from opm.odd_compiler.parse_odd import resolve_schema_source
+    found: dict[str, str] = {}
+    todo = [odd]
+    while todo:
+        path = todo.pop(0).resolve()
+        if path.name in found or not path.is_file():
+            continue
+        found[path.name] = str(path)
+        try:
+            spec = etree.parse(str(path)).getroot().find('.//{http://www.tei-c.org/ns/1.0}schemaSpec')
+        except etree.XMLSyntaxError:
+            continue
+        for token in ((spec.get('source') or '').split() if spec is not None else []):
+            if not token.startswith(('http:', 'https:')):
+                todo.append(resolve_schema_source(token, path))
+    return found
 
 
 def _typst(req: dict) -> dict:
@@ -216,7 +276,7 @@ def main() -> None:
         try:
             req = json.loads(line)
             mode = req.get('mode')
-            run = {'chunk': _chunk, 'collection': _chunk_collection, 'typst': _typst}.get(mode, _transform)
+            run = {'chunk': _chunk, 'collection': _chunk_collection, 'typst': _typst, 'trace': _trace}.get(mode, _transform)
             reply = run(req)
         except Exception as e:
             reply = {'ok': False, 'error': f'{type(e).__name__}: {e}', 'traceback': traceback.format_exc()}

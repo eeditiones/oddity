@@ -8,6 +8,8 @@ interface PanelEntry {
 export interface ElementSpecSelection {
   ident?: string;
   index: number;
+  /** A model inside the spec to open (see findNthModelPath). */
+  modelPath?: number[];
 }
 
 const panels = new Map<string, PanelEntry>();

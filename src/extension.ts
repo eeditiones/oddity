@@ -6,13 +6,16 @@ import { registerOpenGraphicalEditorAtElementSpec } from "./openGraphicalEditorA
 import { registerRecompileOdd } from "./recompileOdd";
 import { removeLegacySchemaBinding } from "./legacySchemaBinding";
 import { registerOpmPreview } from "./opm/previewPanel";
-import { opmLog } from "./opm/helper";
+import { OpmHelper, opmLog } from "./opm/helper";
+import { registerShowOddRule } from "./opm/oddRule";
 import { startXmlLanguageClient, stopXmlLanguageClient } from "./xmlLanguageClient";
 import { registerAutoCloseTags } from "./autoCloseTags";
 import { registerSchemaCommands } from "./schemaCommands";
 import { registerXmlElementCommands } from "./xmlElementCommands";
 
 export function activate(context: vscode.ExtensionContext): void {
+  // One opm process for the preview and Show ODD Rule
+  const opm = new OpmHelper(context);
   context.subscriptions.push(
     startXmlLanguageClient(context),
     registerAutoCloseTags(),
@@ -23,7 +26,9 @@ export function activate(context: vscode.ExtensionContext): void {
     registerRecompileOdd(context),
     registerFindElementSpec(context),
     registerOpenGraphicalEditorAtElementSpec(context),
-    registerOpmPreview(context),
+    registerOpmPreview(context, opm),
+    registerShowOddRule(context, opm),
+    opm,
     vscode.window.registerCustomEditorProvider(
       OddEditorProvider.viewType,
       new OddEditorProvider(context),
