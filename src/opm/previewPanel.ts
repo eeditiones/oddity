@@ -13,6 +13,27 @@ import { PreviewServer } from "./server";
 
 const DEBOUNCE_MS = 400;
 
+/** Color theme of the preview: follow VS Code, or force dark/light. */
+export type PreviewTheme = "auto" | "dark" | "light";
+export const isPreviewTheme = (t: unknown): t is PreviewTheme =>
+  t === "auto" || t === "dark" || t === "light";
+
+/** The color theme of VS Code itself, as the preview should show it. */
+export function colorThemeKind(): "dark" | "light" {
+  const kind = vscode.window.activeColorTheme.kind;
+  return kind === vscode.ColorThemeKind.Dark || kind === vscode.ColorThemeKind.HighContrast ? "dark" : "light";
+}
+
+/** The theme a new preview starts with: the workspace's choice, else the setting. */
+export function initialPreviewTheme(context: vscode.ExtensionContext): PreviewTheme {
+  const stored = context.workspaceState.get("oddity.previewTheme");
+  if (isPreviewTheme(stored)) {
+    return stored;
+  }
+  const configured = vscode.workspace.getConfiguration("oddity.opm").get("previewTheme");
+  return isPreviewTheme(configured) ? configured : "auto";
+}
+
 /** The output mode of each open preview, by document URI. */
 const openModes = new Map<string, PreviewMode>();
 
@@ -74,6 +95,10 @@ export function registerOpmPreview(context: vscode.ExtensionContext, helper: Opm
     server,
     outputs,
     vscode.window.onDidChangeActiveTextEditor(updateContext),
+    vscode.window.onDidChangeActiveColorTheme(() => {
+      panels.forEach((p) => p.colorThemeChanged());
+      collections.forEach((c) => c.colorThemeChanged());
+    }),
     vscode.commands.registerCommand("oddity.opmPreview", async (uri?: vscode.Uri) => {
       const doc = uri
         ? await vscode.workspace.openTextDocument(uri)
@@ -141,6 +166,7 @@ class OpmPreview {
   private readonly id = randomBytes(8).toString("hex");
   private readonly subs: vscode.Disposable[] = [];
   private mode: PreviewMode;
+  private theme: PreviewTheme;
   private timer?: NodeJS.Timeout;
   /** Newest request; replies to older ones are dropped. */
   private seq = 0;
@@ -153,7 +179,7 @@ class OpmPreview {
   private typst = locateTypst();
 
   constructor(
-    context: vscode.ExtensionContext,
+    private readonly context: vscode.ExtensionContext,
     private readonly helper: OpmHelper,
     private readonly server: PreviewServer,
     private readonly outputs: OutputDocuments,
@@ -163,6 +189,7 @@ class OpmPreview {
   ) {
     const configured = vscode.workspace.getConfiguration("oddity.opm").get("defaultMode");
     this.mode = isPreviewMode(configured) && this.available().includes(configured) ? configured : "web";
+    this.theme = initialPreviewTheme(context);
     this.panel = vscode.window.createWebviewPanel(
       "oddity.opmPreview",
       `Preview ${path.basename(doc.fileName)}`,
@@ -208,7 +235,12 @@ class OpmPreview {
   private async render(): Promise<void> {
     const origin = await this.server.origin();
     this.ready = false;
-    this.panel.webview.html = previewHtml(origin, this.mode, this.available());
+    this.panel.webview.html = previewHtml(origin, this.mode, this.available(), undefined, this.theme, colorThemeKind());
+  }
+
+  /** VS Code's color theme changed: with "auto" the preview follows it. */
+  colorThemeChanged(): void {
+    this.post({ type: "themeKind", kind: colorThemeKind() });
   }
 
   /** The opm process restarted: look for typst again (it may just have been installed). */
@@ -242,10 +274,13 @@ class OpmPreview {
     this.panel.dispose();
   }
 
-  private onMessage(msg: { type?: string; mode?: string }): void {
+  private onMessage(msg: { type?: string; mode?: string; theme?: unknown }): void {
     if (msg.type === "ready") {
       this.ready = true;
       void this.refresh();
+    } else if (msg.type === "theme" && isPreviewTheme(msg.theme)) {
+      this.theme = msg.theme;
+      void this.context.workspaceState.update("oddity.previewTheme", this.theme);
     } else if (msg.type === "mode" && isPreviewMode(msg.mode)) {
       this.mode = msg.mode;
       openModes.set(this.doc.uri.toString(), this.mode);
@@ -393,6 +428,9 @@ export function isInside(file: string, root: string): boolean {
 /** The codicon "go-to-file", inline: the panel loads no icon font. */
 const GO_TO_FILE = `<svg aria-hidden="true" width="16" height="16" viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg" fill="currentColor"><path fill-rule="evenodd" clip-rule="evenodd" d="M8.58594 1.00098C8.98394 1.00098 9.36646 1.15943 9.64746 1.44043L12.5605 4.35352C12.8415 4.63552 13.001 5.01704 13.001 5.41504V13.001C13.001 14.106 12.106 15.001 11.001 15.001H5.00098C3.89599 15.001 3.00098 14.106 3.00098 13.001V6.00098H4.00098V13.001C4.00098 13.553 4.44899 14.001 5.00098 14.001H11.001C11.553 14.001 12.001 13.553 12.001 13.001V6.00098H9.50098C8.67299 6.00096 8.00098 5.32897 8.00098 4.50098V2.00098C7.99198 1.97699 7.98265 1.9527 7.97266 1.92871C7.89674 1.74704 7.78717 1.5812 7.64746 1.44238L7.20605 1.00098H8.58594ZM9 4.5C9 4.776 9.224 5 9.5 5H11.793L9 2.20703V4.5Z"/><path d="M4.5 0C4.63299 0 4.75952 0.0534683 4.85352 0.147461L6.85352 2.14746C6.90042 2.19336 6.93789 2.24775 6.96289 2.30859C6.98789 2.36959 7.00097 2.43498 7.00098 2.50098C7.00098 2.56698 6.98789 2.63236 6.96289 2.69336C6.93789 2.75323 6.90043 2.80956 6.85352 2.85547L4.85352 4.85547C4.75956 4.94917 4.63278 5.00195 4.5 5.00195C4.36722 5.00195 4.24044 4.94917 4.14648 4.85547C4.05248 4.76147 3.99902 4.63398 3.99902 4.50098C3.99903 4.36799 4.05249 4.24146 4.14648 4.14746L5.29297 3.00098H2.5C2.10201 3.00098 1.72045 3.15944 1.43945 3.44043C1.15846 3.72242 1.00001 4.10298 1 4.50098V5.50098C1 5.63398 0.947516 5.76147 0.853516 5.85547C0.759563 5.94817 0.632774 6.00098 0.5 6.00098C0.367225 6.00098 0.240437 5.94917 0.146484 5.85547C0.0534844 5.76147 0 5.63398 0 5.50098V4.50098C6.17892e-06 3.83799 0.263427 3.20239 0.732422 2.7334C1.20142 2.26441 1.83701 2.00098 2.5 2.00098H5.29297L4.14648 0.855469C4.05248 0.761469 3.99902 0.633977 3.99902 0.500977C3.99903 0.367985 4.05249 0.241455 4.14648 0.147461C4.24048 0.0534683 4.36701 0 4.5 0Z"/></svg>`;
 
+/** The codicon "refresh", inline: the panel loads no icon font. */
+const REFRESH = `<svg aria-hidden="true" width="16" height="16" viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg" fill="currentColor"><path d="M3 8a5 5 0 0 1 9-3h-2a.5.5 0 0 0 0 1h3a.5.5 0 0 0 .5-.5v-3a.5.5 0 0 0-1 0v1.531a6 6 0 1 0 1.476 4.513.5.5 0 0 0-.996-.089A5 5 0 0 1 3 8Z"/></svg>`;
+
 /** The codicon "file-pdf", inline. */
 const FILE_PDF = `<svg aria-hidden="true" width="16" height="16" viewBox="0 0 16 16" xmlns="http://www.w3.org/2000/svg" fill="currentColor"><path d="M13.5 7H13V5.414C13 5.016 12.842 4.635 12.561 4.353L9.647 1.439C9.366 1.158 8.984 1 8.586 1H5C3.895 1 3 1.895 3 3V7H2.5C1.673 7 1 7.673 1 8.5V13.5C1 14.327 1.673 15 2.5 15H13.5C14.327 15 15 14.327 15 13.5V8.5C15 7.673 14.327 7 13.5 7ZM9 2.207L11.793 5H9.5C9.224 5 9 4.776 9 4.5V2.207ZM4 3C4 2.448 4.448 2 5 2H8V4.5C8 5.328 8.672 6 9.5 6H12V7H4V3ZM14 13.5C14 13.775 13.775 14 13.5 14H2.5C2.224 14 2 13.775 2 13.5V8.5C2 8.225 2.224 8 2.5 8H13.5C13.775 8 14 8.225 14 8.5V13.5Z"/><path d="M4.5 9H3.5C3.224 9 3 9.224 3 9.5V12.5C3 12.776 3.224 13 3.5 13C3.776 13 4 12.776 4 12.5V12H4.5C5.327 12 6 11.327 6 10.5C6 9.673 5.327 9 4.5 9ZM4.5 11H4V10H4.5C4.776 10 5 10.225 5 10.5C5 10.775 4.776 11 4.5 11Z"/><path d="M8 9H7.5C7.224 9 7 9.224 7 9.5V12.5C7 12.776 7.224 13 7.5 13H8C9.103 13 10 12.103 10 11C10 9.897 9.103 9 8 9ZM8 12V10C8.552 10 9 10.448 9 11C9 11.552 8.552 12 8 12Z"/><path d="M13 9H11.5C11.224 9 11 9.224 11 9.5V12.5C11 12.776 11.224 13 11.5 13C11.776 13 12 12.776 12 12.5V12H12.5C12.776 12 13 11.776 13 11.5C13 11.224 12.776 11 12.5 11H12V10H13C13.276 10 13.5 9.776 13.5 9.5C13.5 9.224 13.276 9 13 9Z"/></svg>`;
 
@@ -400,7 +438,14 @@ const FILE_PDF = `<svg aria-hidden="true" width="16" height="16" viewBox="0 0 16
  * The panel around the preview frame. With `collection` (the folder's name)
  * it shows a chunk run of the whole folder: no mode menu, but a Rebuild button.
  */
-export function previewHtml(origin: string, mode: PreviewMode, modes: readonly PreviewMode[], collection?: string): string {
+export function previewHtml(
+  origin: string,
+  mode: PreviewMode,
+  modes: readonly PreviewMode[],
+  collection?: string,
+  theme: PreviewTheme = "auto",
+  kind: "dark" | "light" = "dark"
+): string {
   const nonce = randomBytes(16).toString("base64");
   const csp = [
     `default-src 'none'`,
@@ -411,12 +456,19 @@ export function previewHtml(origin: string, mode: PreviewMode, modes: readonly P
   const options = modes.map(
     (m) => `<option value="${m}"${m === mode ? " selected" : ""}>${m}</option>`
   ).join("");
+  const themeOptions = (["auto", "dark", "light"] as const)
+    .map((t) => `<option value="${t}"${t === theme ? " selected" : ""}>${t}</option>`)
+    .join("");
+  const themeSelect = `<label>Theme <select id="theme" title="Color theme of the preview">${themeOptions}</select></label>`;
   const controls = collection === undefined
     ? `<label>Output <select id="mode">${options}</select></label>
   <button id="open" title="Open output in editor" aria-label="Open output in editor" disabled>${GO_TO_FILE}</button>
-  <button id="export" class="icon" title="Export PDF" aria-label="Export PDF"${mode === "typst" ? "" : " hidden"}>${FILE_PDF}</button>`
+  <button id="export" class="icon" title="Export PDF" aria-label="Export PDF"${mode === "typst" ? "" : " hidden"}>${FILE_PDF}</button>
+  ${themeSelect}`
     : `<span class="name" title="Every XML file directly in this folder, chunked as opm chunk does">${escapeHtml(collection)}</span>
-  <button id="rebuild" title="Chunk the collection again, with the saved files">Rebuild</button>`;
+  <button id="rebuild" class="icon" title="Chunk the collection again, with the saved files" aria-label="Rebuild">${REFRESH}</button>
+  ${themeSelect}
+  <input id="location" class="location" type="text" readonly aria-label="Current page" title="Path of the page shown, from the root of the chunked site" placeholder="/" />`;
   return `<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -434,12 +486,33 @@ export function previewHtml(origin: string, mode: PreviewMode, modes: readonly P
   .status { margin-left: auto; color: var(--vscode-descriptionForeground); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
   .status.busy::before { content: "⟳ "; }
   .name { font-weight: 600; white-space: nowrap; }
+  .location { flex: 1 1 auto; min-width: 8em; font: inherit; font-family: var(--vscode-editor-font-family, monospace); color: var(--vscode-input-foreground); background: var(--vscode-input-background); border: 1px solid var(--vscode-input-border, transparent); border-radius: 3px; padding: 2px 6px; }
+  .location:focus { outline: 1px solid var(--vscode-focusBorder); outline-offset: -1px; }
   main { position: relative; flex: 1; min-height: 0; }
   iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; background: #fff; }
   .error { position: absolute; inset: 0; overflow: auto; padding: 12px 16px; background: var(--vscode-editor-background); }
   .error pre { margin: 0; padding: 8px; white-space: pre-wrap; border-left: 3px solid var(--vscode-errorForeground); background: var(--vscode-textCodeBlock-background); font-family: var(--vscode-editor-font-family, monospace); }
   .error a { color: var(--vscode-textLink-foreground); cursor: pointer; }
   [hidden] { display: none !important; }
+  /* An explicit Theme choice overrides the VS Code theme variables of the panel chrome */
+  body[data-oddity-theme="dark"] {
+    color-scheme: dark;
+    --vscode-editor-background: #1e1e1e; --vscode-foreground: #d4d4d4;
+    --vscode-panel-border: #2b2b2b;
+    --vscode-input-foreground: #d4d4d4; --vscode-input-background: #313131; --vscode-input-border: #3c3c3c;
+    --vscode-descriptionForeground: #9d9d9d; --vscode-errorForeground: #f48771;
+    --vscode-textCodeBlock-background: #252526; --vscode-textLink-foreground: #4daafc; --vscode-focusBorder: #007fd4;
+  }
+  body[data-oddity-theme="dark"] #frame { background: #1e1e1e; }
+  body[data-oddity-theme="light"] {
+    color-scheme: light;
+    --vscode-editor-background: #ffffff; --vscode-foreground: #3b3b3b;
+    --vscode-panel-border: #cccccc;
+    --vscode-input-foreground: #3b3b3b; --vscode-input-background: #ffffff; --vscode-input-border: #cecece;
+    --vscode-descriptionForeground: #616161; --vscode-errorForeground: #e51400;
+    --vscode-textCodeBlock-background: #f3f3f3; --vscode-textLink-foreground: #006ab1; --vscode-focusBorder: #0090f1;
+  }
+  body[data-oddity-theme="light"] #frame { background: #fff; }
 </style>
 </head>
 <body>
@@ -461,6 +534,18 @@ export function previewHtml(origin: string, mode: PreviewMode, modes: readonly P
   const frame = $("frame"), status = $("status");
   let stale = false;
   let elapsed = 0, hasOutput = false, mode = ${JSON.stringify(mode)};
+  /** Theme menu: "auto" follows the VS Code color theme (themeKind). */
+  let themeSetting = ${JSON.stringify(theme)};
+  let themeKind = ${JSON.stringify(kind)};
+  const effectiveTheme = () => (themeSetting === "auto" ? themeKind : themeSetting);
+  function applyChrome() {
+    if (themeSetting === "auto") document.body.removeAttribute("data-oddity-theme");
+    else document.body.setAttribute("data-oddity-theme", themeSetting);
+  }
+  /** Tell the preview frame which theme to render with. */
+  function sendTheme() {
+    if (frame.contentWindow) frame.contentWindow.postMessage({ oddityTheme: effectiveTheme() }, "*");
+  }
   /** Page of the chunk site on show, to reload in place on refresh. */
   let chunkPath = null;
   const UNSAVED = "Unsaved changes · chunk reads the saved file: save to update";
@@ -474,6 +559,13 @@ export function previewHtml(origin: string, mode: PreviewMode, modes: readonly P
     $("export").hidden = e.target.value !== "typst";
     vscode.postMessage({ type: "mode", mode: e.target.value });
   };
+  if ($("theme")) $("theme").onchange = (e) => {
+    themeSetting = e.target.value;
+    applyChrome();
+    sendTheme();
+    vscode.postMessage({ type: "theme", theme: themeSetting });
+  };
+  applyChrome();
   const took = (ms) => ms < 2000 ? ms + " ms" : (ms / 1000).toFixed(1) + " s";
   $("log").onclick = () => vscode.postMessage({ type: "log" });
   $("restart").onclick = () => vscode.postMessage({ type: "restart" });
@@ -487,9 +579,19 @@ export function previewHtml(origin: string, mode: PreviewMode, modes: readonly P
     const m = e.data;
     if (!m || typeof m !== "object") return;
     // Messages from the preview frame
-    if (e.source === frame.contentWindow && m.oddityPreview) {
+    if (e.source === frame.contentWindow) {
+      // The frame loaded with no stored theme: tell it ours
+      if (m.oddityThemeRequest) {
+        sendTheme();
+        return;
+      }
+      if (!m.oddityPreview) return;
       if (m.oddityPreview === "done") {
-        if (mode === "chunk" && m.path) chunkPath = m.path;
+        if (mode === "chunk" && m.path) {
+          chunkPath = m.path;
+          // Drop the server's /<token>/p/<id> prefix: show the path from the site root
+          if ($("location")) $("location").value = "/" + m.path.split("/").slice(4).map((p) => { try { return decodeURIComponent(p); } catch { return p; } }).join("/");
+        }
         if (mode === "chunk" && stale) return;
         setStatus("Up to date · " + took(elapsed) + (m.pages ? " · " + m.pages + " pages" : ""));
       } else {
@@ -498,6 +600,10 @@ export function previewHtml(origin: string, mode: PreviewMode, modes: readonly P
       return;
     }
     switch (m.type) {
+      case "themeKind":
+        themeKind = m.kind === "light" ? "light" : "dark";
+        sendTheme();
+        break;
       case "busy":
         setStatus(m.label || (hasOutput ? "Updating…" : "Transforming…"), true);
         if ($("rebuild")) $("rebuild").disabled = true;
@@ -519,6 +625,7 @@ export function previewHtml(origin: string, mode: PreviewMode, modes: readonly P
         if (mode === "chunk" && chunkPath) url.pathname = chunkPath;
         url.searchParams.set("v", m.v);
         frame.src = url.toString();
+        sendTheme();
         if (stale) setStatus(m.message || UNSAVED);
         else setStatus(mode === "print" ? "Paginating…" : "Up to date · " + took(elapsed), mode === "print");
         break;

@@ -430,6 +430,16 @@
           "default": "web",
           "markdownDescription": "Output mode a new opm preview starts with. `typst` needs the typst command; without it the preview starts with `web`."
         },
+        "oddity.opm.previewTheme": {
+          "type": "string",
+          "enum": [
+            "auto",
+            "dark",
+            "light"
+          ],
+          "default": "auto",
+          "markdownDescription": "Color theme of the opm preview: `auto` follows the color theme of VS Code; `dark` and `light` force one. The **Theme** menu at the top of a preview overrides this for the workspace."
+        },
         "oddity.opm.typst": {
           "type": "string",
           "default": "",

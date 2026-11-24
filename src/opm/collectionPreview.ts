@@ -4,7 +4,7 @@ import * as os from "os";
 import * as path from "path";
 import * as vscode from "vscode";
 import { ChunkProgress, OpmHelper } from "./helper";
-import { isInside, previewHtml } from "./previewPanel";
+import { colorThemeKind, initialPreviewTheme, isInside, isPreviewTheme, PreviewTheme, previewHtml } from "./previewPanel";
 import { findOpmProject } from "./project";
 import { chunkPage } from "./render";
 import { PreviewServer } from "./server";
@@ -26,15 +26,17 @@ export class CollectionPreview {
   private building = false;
   /** A file was saved since the last run started. */
   private changed = false;
+  private theme: PreviewTheme;
 
   constructor(
-    context: vscode.ExtensionContext,
+    private readonly context: vscode.ExtensionContext,
     private readonly helper: OpmHelper,
     private readonly server: PreviewServer,
     private readonly folder: string,
     private readonly root: string,
     private readonly onDispose: () => void
   ) {
+    this.theme = initialPreviewTheme(context);
     this.panel = vscode.window.createWebviewPanel(
       "oddity.opmPreview",
       `Preview ${path.basename(folder)}/`,
@@ -46,15 +48,18 @@ export class CollectionPreview {
       dark: vscode.Uri.joinPath(context.extensionUri, "media", "oddity_icon_dark.svg"),
     };
     void this.server.origin().then((origin) => {
-      this.panel.webview.html = previewHtml(origin, "chunk", [], path.basename(folder));
+      this.panel.webview.html = previewHtml(origin, "chunk", [], path.basename(folder), this.theme, colorThemeKind());
     });
 
     this.subs.push(
       this.panel.onDidDispose(() => this.dispose()),
-      this.panel.webview.onDidReceiveMessage((msg: { type?: string }) => {
+      this.panel.webview.onDidReceiveMessage((msg: { type?: string; theme?: unknown }) => {
         if (msg.type === "ready") {
           this.ready = true;
           void this.build();
+        } else if (msg.type === "theme" && isPreviewTheme(msg.theme)) {
+          this.theme = msg.theme;
+          void this.context.workspaceState.update("oddity.previewTheme", this.theme);
         } else if (msg.type === "rebuild") {
           void this.build();
         } else if (msg.type === "restart") {
@@ -83,6 +88,11 @@ export class CollectionPreview {
   /** The opm process restarted: build again with it. */
   restarted(): void {
     void this.build();
+  }
+
+  /** VS Code's color theme changed: with "auto" the preview follows it. */
+  colorThemeChanged(): void {
+    this.post({ type: "themeKind", kind: colorThemeKind() });
   }
 
   dispose(): void {
