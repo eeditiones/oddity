@@ -5,7 +5,7 @@ import * as path from "path";
 import * as vscode from "vscode";
 import { ChunkProgress, OpmHelper } from "./helper";
 import { colorThemeKind, initialPreviewTheme, isInside, isPreviewTheme, PreviewTheme, previewHtml } from "./previewPanel";
-import { findOpmProject } from "./project";
+import { findOpmProject, OpmProject } from "./project";
 import { chunkPage } from "./render";
 import { PreviewServer } from "./server";
 
@@ -33,7 +33,7 @@ export class CollectionPreview {
     private readonly helper: OpmHelper,
     private readonly server: PreviewServer,
     private readonly folder: string,
-    private readonly root: string,
+    private readonly project: OpmProject,
     private readonly onDispose: () => void
   ) {
     this.theme = initialPreviewTheme(context);
@@ -71,7 +71,7 @@ export class CollectionPreview {
       // Any file of the project may change the pages: the documents, the ODD,
       // CSS, templates, opm.toml
       vscode.workspace.onDidSaveTextDocument((saved) => {
-        if (isInside(saved.uri.fsPath, this.root)) {
+        if (isInside(saved.uri.fsPath, this.project.scope)) {
           this.changed = true;
           if (!this.building) {
             this.post({ type: "stale", dirty: true, message: STALE });
@@ -113,7 +113,7 @@ export class CollectionPreview {
     const started = Date.now();
     this.post({ type: "busy", label: "Chunking…" });
     const result = await this.helper.transform(
-      { root: this.root, folder: this.folder, mode: "collection", out: path.join(this.tmpDir, "collection") },
+      { root: this.project.config, folder: this.folder, mode: "collection", out: path.join(this.tmpDir, "collection") },
       (p) => this.post({ type: "busy", label: progressLabel(p) })
     );
     this.building = false;
@@ -132,7 +132,7 @@ export class CollectionPreview {
       landing: result.landing,
       page: chunkPage,
       docDir: this.folder,
-      root: this.root,
+      root: this.project.scope,
     });
     this.post({
       type: "show",
@@ -159,20 +159,25 @@ function progressLabel(p: ChunkProgress): string {
 
 /**
  * Folders the explorer offers "Preview Collection with opm" on: those with
- * XML files directly in them, inside a folder with an opm.toml.
+ * XML files directly in them that belong to an opm project.
  */
 export async function collectionFolders(): Promise<string[]> {
-  const tomls = await vscode.workspace.findFiles("**/opm.toml");
-  if (!tomls.length) {
+  const configured = (vscode.workspace.workspaceFolders ?? []).some(
+    (f) => !!vscode.workspace.getConfiguration("oddity.opm", f.uri).get<string>("config")?.trim()
+  );
+  if (!configured && !(await vscode.workspace.findFiles("**/opm.toml", undefined, 1)).length) {
     return [];
   }
-  const roots = tomls.map((u) => path.dirname(u.fsPath));
-  const folders = new Set<string>();
+  const checked = new Set<string>();
+  const folders: string[] = [];
   for (const xml of await vscode.workspace.findFiles("**/*.xml")) {
     const dir = path.dirname(xml.fsPath);
-    if (!folders.has(dir) && roots.some((r) => isInside(dir, r)) && findOpmProject(xml)) {
-      folders.add(dir);
+    if (!checked.has(dir)) {
+      checked.add(dir);
+      if (findOpmProject(xml)) {
+        folders.push(dir);
+      }
     }
   }
-  return [...folders];
+  return folders;
 }

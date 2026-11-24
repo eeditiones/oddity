@@ -418,6 +418,12 @@
           "default": "",
           "markdownDescription": "Python interpreter that has opm installed, for the opm preview. Takes precedence over `#oddity.opm.path#`; use it when opm lives in a virtual environment."
         },
+        "oddity.opm.config": {
+          "type": "string",
+          "default": "",
+          "scope": "resource",
+          "markdownDescription": "Path of the `opm.toml` for all files of the workspace folder, relative to it (a folder means its `opm.toml`). Empty: the nearest folder above a file that has an `opm.toml`, or an `opm/opm.toml`, is its project."
+        },
         "oddity.opm.defaultMode": {
           "type": "string",
           "enum": [

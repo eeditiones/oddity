@@ -7,7 +7,7 @@ import { CollectionPreview, collectionFolders } from "./collectionPreview";
 import { OpmHelper } from "./helper";
 import { locateTypst } from "./locate";
 import { OutputDocuments } from "./outputDocuments";
-import { findOpmProject, isPreviewable } from "./project";
+import { findOpmProject, isPreviewable, OpmProject } from "./project";
 import { chunkPage, isPreviewMode, PREVIEW_MODES, previewPage, PreviewMode, typstPage } from "./render";
 import { PreviewServer } from "./server";
 
@@ -91,6 +91,12 @@ export function registerOpmPreview(context: vscode.ExtensionContext, helper: Opm
     watcher.onDidCreate(updateFolders),
     watcher.onDidDelete(updateFolders),
     vscode.workspace.onDidChangeWorkspaceFolders(updateFolders),
+    vscode.workspace.onDidChangeConfiguration((e) => {
+      if (e.affectsConfiguration("oddity.opm.config")) {
+        updateFolders();
+        updateContext();
+      }
+    }),
     { dispose: () => clearTimeout(scan) },
     server,
     outputs,
@@ -103,10 +109,10 @@ export function registerOpmPreview(context: vscode.ExtensionContext, helper: Opm
       const doc = uri
         ? await vscode.workspace.openTextDocument(uri)
         : vscode.window.activeTextEditor?.document;
-      const root = doc && findOpmProject(doc.uri);
-      if (!doc || !root) {
+      const project = doc && findOpmProject(doc.uri);
+      if (!doc || !project) {
         vscode.window.showInformationMessage(
-          "The opm preview works on XML files in a folder with an opm.toml (an opm project)."
+          "The opm preview works on XML files of an opm project: a folder with an opm.toml or an opm/opm.toml, or the one the oddity.opm.config setting names."
         );
         return;
       }
@@ -117,14 +123,14 @@ export function registerOpmPreview(context: vscode.ExtensionContext, helper: Opm
         return;
       }
       helper.allowInstallPrompt();
-      const preview = new OpmPreview(context, helper, server, outputs, doc, root, () => panels.delete(key));
+      const preview = new OpmPreview(context, helper, server, outputs, doc, project, () => panels.delete(key));
       panels.set(key, preview);
     }),
     vscode.commands.registerCommand("oddity.opmPreviewCollection", (uri?: vscode.Uri) => {
-      const root = uri && findOpmProject(vscode.Uri.joinPath(uri, "_"));
-      if (!uri || !root) {
+      const project = uri && findOpmProject(vscode.Uri.joinPath(uri, "_"));
+      if (!uri || !project) {
         vscode.window.showInformationMessage(
-          "The collection preview works on folders in a folder with an opm.toml (an opm project)."
+          "The collection preview works on folders of an opm project: a folder with an opm.toml or an opm/opm.toml, or the one the oddity.opm.config setting names."
         );
         return;
       }
@@ -137,7 +143,7 @@ export function registerOpmPreview(context: vscode.ExtensionContext, helper: Opm
       helper.allowInstallPrompt();
       collections.set(
         key,
-        new CollectionPreview(context, helper, server, uri.fsPath, root, () => collections.delete(key))
+        new CollectionPreview(context, helper, server, uri.fsPath, project, () => collections.delete(key))
       );
     }),
     // Title-bar buttons of the preview; VS Code's own command does the work
@@ -184,7 +190,7 @@ class OpmPreview {
     private readonly server: PreviewServer,
     private readonly outputs: OutputDocuments,
     private readonly doc: vscode.TextDocument,
-    private readonly root: string,
+    private readonly project: OpmProject,
     private readonly onDispose: () => void
   ) {
     const configured = vscode.workspace.getConfiguration("oddity.opm").get("defaultMode");
@@ -220,7 +226,7 @@ class OpmPreview {
         // The document itself only matters to chunk, which reads it from disk;
         // otherwise ODD, CSS, templates, opm.toml, registers: anything the
         // output may use
-        if (saved === this.doc ? this.mode === "chunk" : isInside(saved.uri.fsPath, this.root)) {
+        if (saved === this.doc ? this.mode === "chunk" : isInside(saved.uri.fsPath, this.project.scope)) {
           this.schedule();
         }
       })
@@ -313,7 +319,7 @@ class OpmPreview {
       { location: vscode.ProgressLocation.Notification, title: "Exporting PDF…" },
       () =>
         this.helper.transform({
-          root: this.root,
+          root: this.project.config,
           file: this.doc.uri.fsPath,
           mode: "typst",
           text: this.doc.getText(),
@@ -352,10 +358,10 @@ class OpmPreview {
     const text = this.doc.getText();
     const result = await this.helper.transform(
       mode === "chunk"
-        ? { root: this.root, file, mode, out: path.join(this.tmpDir, "chunk") }
+        ? { root: this.project.config, file, mode, out: path.join(this.tmpDir, "chunk") }
         : mode === "typst" && this.typst
-          ? { root: this.root, file, mode, text, typst: this.typst, out: path.join(this.tmpDir, "typst") }
-          : { root: this.root, file, mode, text }
+          ? { root: this.project.config, file, mode, text, typst: this.typst, out: path.join(this.tmpDir, "typst") }
+          : { root: this.project.config, file, mode, text }
     );
     if (seq !== this.seq) {
       return;
@@ -379,7 +385,7 @@ class OpmPreview {
         html: typstPage(result.pages, seq),
         dir: result.dir,
         docDir,
-        root: this.root,
+        root: this.project.scope,
       });
     } else if ("dir" in result) {
       this.output = undefined;
@@ -388,7 +394,7 @@ class OpmPreview {
         landing: result.landing,
         page: chunkPage,
         docDir,
-        root: this.root,
+        root: this.project.scope,
       });
     } else {
       this.output = { mode, text: result.output };
@@ -398,7 +404,7 @@ class OpmPreview {
         html: previewPage(mode, result.output, this.server.pagedJsPath),
         assets: result.assets,
         docDir,
-        root: this.root,
+        root: this.project.scope,
       });
     }
     this.post({

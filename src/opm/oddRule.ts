@@ -80,7 +80,7 @@ async function runRuleLink(
   args: RuleArgs
 ): Promise<void> {
   const doc = await vscode.workspace.openTextDocument(vscode.Uri.parse(args.uri));
-  const root = findOpmProject(doc.uri);
+  const root = findOpmProject(doc.uri)?.config;
   const ast = asts.get(doc);
   const element = ast && elementAt(ast, args.offset);
   if (!root || !element) {
@@ -224,7 +224,7 @@ async function hover(
   if (!vscode.workspace.getConfiguration("oddity.opm").get<boolean>("ruleHover", true)) {
     return undefined;
   }
-  const root = findOpmProject(doc.uri);
+  const root = findOpmProject(doc.uri)?.config;
   if (!root || !isPreviewable(doc)) {
     return undefined;
   }

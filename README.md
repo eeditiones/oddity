@@ -141,6 +141,22 @@ Publisher does, and produces web pages, printable pages and other formats. An op
 project is a folder with an `opm.toml` file, which says which ODD, templates and
 styles to use.
 
+The opm files may also live in a subfolder named `opm`, so that they do not
+clutter the root of your repository:
+
+```
+my-edition/
+├── data/          TEI documents
+└── opm/
+    ├── opm.toml   paths in it are relative to this folder, e.g. "../data/registers.xml"
+    ├── odd/
+    └── templates/
+```
+
+Every document under `my-edition/` then belongs to the project. For any other
+layout, set **oddity.opm.config** to the path of the `opm.toml`, relative to the
+workspace folder.
+
 Open a TEI document of the project and click the preview button in the editor's
 title bar (or choose **Open opm Preview to the Side**). The preview appears next
 to your text and follows your typing; you do not need to save first. When you

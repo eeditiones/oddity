@@ -95,7 +95,7 @@ async function associateSchema(
   );
   // without documents (e.g. right after compiling an ODD), the project of the schema
   const anchor = docs[0] ?? preselect;
-  const opmRoot = anchor ? findOpmProject(anchor) : undefined;
+  const opmRoot = anchor ? findOpmProject(anchor)?.scope : undefined;
   const root = anchor ? opmRoot ?? vscode.workspace.getWorkspaceFolder(anchor)?.uri.fsPath : undefined;
 
   const picks: SchemaPick[] = [];
