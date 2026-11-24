@@ -10,6 +10,8 @@
 # Reply:    {"id": 1, "ok": true, "output": "<html…", "assets": {"name": "/abs/path"}}
 #       or  {"id": 1, "ok": false, "error": "…", "traceback": "…"}
 #
+# On start it writes {"ready": true, "version": "0.10.0"}: the installed opm.
+#
 # Mode "chunk" takes "out" (a directory) instead of using "text", and replies
 # {"id": 1, "ok": true, "dir": "/out", "landing": "a.xml/001.html"}.
 #
@@ -286,6 +288,9 @@ def main() -> None:
 
 if __name__ == '__main__':
     import opm
-    sys.stderr.write(f'opm {getattr(opm, "__version__", "?")} ready\n')
+    version = getattr(opm, '__version__', None)
+    sys.stderr.write(f'opm {version or "?"} ready\n')
     sys.stderr.flush()
+    # The extension checks the version against the oldest opm it supports
+    _write({'ready': True, 'version': version})
     main()

@@ -276,6 +276,7 @@ macOS) and search for "ODDity".
 - Visual Studio Code 1.91 or later.
 - For the preview: [opm](https://github.com/eeditiones/open-processing-model),
   which ODDity offers to install (it uses `uv tool install open-processing-model`).
+  ODDity needs opm 0.10.0 or later and offers to upgrade an older one.
 - For PDF output: [Typst](https://typst.app/open-source/).
 
 ODDity no longer needs Red Hat's XML extension. If you have it installed, you may

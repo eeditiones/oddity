@@ -2,7 +2,7 @@ import { ChildProcess, spawn } from "child_process";
 import * as path from "path";
 import * as readline from "readline";
 import * as vscode from "vscode";
-import { locatePython, offerInstall } from "./locate";
+import { checkOpmVersion, locatePython, offerInstall } from "./locate";
 
 export type TransformRequest =
   | { root: string; file: string; mode: string; text: string }
@@ -69,6 +69,8 @@ export class OpmHelper implements vscode.Disposable {
   private starting?: Promise<ChildProcess | undefined>;
   private nextId = 1;
   private offered = false;
+  /** The installed opm's version was checked this session: warn about it once. */
+  private versionChecked = false;
   private readonly pending = new Map<number, Pending>();
   readonly log = opmLog();
 
@@ -144,11 +146,15 @@ export class OpmHelper implements vscode.Disposable {
     proc.stderr?.setEncoding("utf8");
     proc.stderr?.on("data", (chunk: string) => this.log.append(chunk));
     readline.createInterface({ input: proc.stdout! }).on("line", (line) => {
-      let reply: { id?: number; progress?: ChunkProgress };
+      let reply: { id?: number; progress?: ChunkProgress; ready?: boolean; version?: string | null };
       try {
         reply = JSON.parse(line);
       } catch {
         this.log.appendLine(line);
+        return;
+      }
+      if (reply.ready) {
+        this.checkVersion(python!, reply.version);
         return;
       }
       const pending = reply.id !== undefined ? this.pending.get(reply.id) : undefined;
@@ -173,5 +179,16 @@ export class OpmHelper implements vscode.Disposable {
     });
     this.proc = proc;
     return proc;
+  }
+
+  private async checkVersion(python: string, version: string | null | undefined): Promise<void> {
+    if (this.versionChecked) {
+      return;
+    }
+    this.versionChecked = true;
+    if (await checkOpmVersion(python, version, this.log)) {
+      // The upgraded opm is loaded on the next request
+      this.restart();
+    }
   }
 }

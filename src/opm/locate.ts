@@ -157,7 +157,108 @@ export async function offerInstall(feature = "The preview"): Promise<boolean> {
     : findOnPath("pipx")
       ? `pipx install ${PACKAGE}`
       : `${process.platform === "win32" ? "py" : "python3"} -m pip install --user ${PACKAGE}`;
-  const terminal = vscode.window.createTerminal({ name: "Install opm" });
+  return runInTerminal("Install opm", command);
+}
+
+/**
+ * The oldest opm the preview helper (media/opm_preview.py) works with. Raise it
+ * when the helper starts to use something only a newer opm has.
+ */
+export const MIN_OPM_VERSION = "0.10.0";
+
+/**
+ * A version as [release numbers, stage, stage number], ordered as Python's
+ * packaging does for the forms opm uses: 0.11.0.dev0 < 0.11.0a1 < 0.11.0rc1 <
+ * 0.11.0 < 0.11.0.post1. A local part (+g1234abc) is ignored. Undefined when
+ * the text is not a version.
+ */
+function parseVersion(text: string): [number[], number, number] | undefined {
+  const m = /^v?(\d+(?:\.\d+)*)(?:[-_.]?(a|alpha|b|beta|c|rc|pre|preview)[-_.]?(\d*))?(?:[-_.]?(post|rev|r)[-_.]?(\d*))?(?:[-_.]?(dev)[-_.]?(\d*))?(?:\+.*)?$/i.exec(
+    text.trim()
+  );
+  if (!m) {
+    return undefined;
+  }
+  const release = m[1].split(".").map(Number);
+  const pre = m[2]?.toLowerCase();
+  // Stage: dev release of the version itself, pre-release, final, post-release
+  const stage = m[4] ? 3 : pre ? 1 : m[6] ? 0 : 2;
+  const num = Number((m[4] ? m[5] : pre ? m[3] : m[6] ? m[7] : "0") || "0");
+  return [release, stage, num];
+}
+
+/** Negative, zero or positive as version a is older than, equal to or newer than b. */
+export function compareVersions(a: string, b: string): number | undefined {
+  const pa = parseVersion(a);
+  const pb = parseVersion(b);
+  if (!pa || !pb) {
+    return undefined;
+  }
+  for (let i = 0; i < Math.max(pa[0].length, pb[0].length); i++) {
+    const d = (pa[0][i] ?? 0) - (pb[0][i] ?? 0);
+    if (d) {
+      return d;
+    }
+  }
+  return pa[1] - pb[1] || pa[2] - pb[2];
+}
+
+/** A development build of opm, e.g. installed from a checkout of its main branch. */
+export function isDevVersion(version: string): boolean {
+  return /[-_.]?dev\d*(\+.*)?$/i.test(version.trim()) || version.includes("+");
+}
+
+/**
+ * Check the opm that `python` has against [MIN_OPM_VERSION]. A development
+ * build or a release newer than oddity knows is only noted in `log`; an older
+ * one gets a warning that offers to upgrade it. Resolves true once an upgrade
+ * terminal has closed, so the caller can restart opm.
+ */
+export async function checkOpmVersion(
+  python: string,
+  version: string | null | undefined,
+  log: vscode.OutputChannel
+): Promise<boolean> {
+  // opm reports "0" when it has no package metadata (run from a source tree)
+  const order = version && version !== "0" ? compareVersions(version, MIN_OPM_VERSION) : undefined;
+  if (order === undefined) {
+    log.appendLine(`Could not tell which opm version is installed (${version ?? "none reported"}).`);
+    return false;
+  }
+  if (isDevVersion(version!)) {
+    log.appendLine(`Using a development build of opm (${version}).`);
+  }
+  if (order >= 0) {
+    return false;
+  }
+  const upgrade = "Upgrade opm";
+  const choice = await vscode.window.showWarningMessage(
+    `ODDity needs opm ${MIN_OPM_VERSION} or later, but opm ${version} is installed. ` +
+      "Some preview features may not work until you upgrade it.",
+    upgrade
+  );
+  return choice === upgrade ? runInTerminal("Upgrade opm", upgradeCommand(python)) : false;
+}
+
+/** How to upgrade the opm installed in `python`, going by where that is. */
+function upgradeCommand(python: string): string {
+  const p = python.replace(/\\/g, "/");
+  if (/\/uv\/tools\//.test(p) && findOnPath("uv")) {
+    return `uv tool upgrade ${PACKAGE}`;
+  }
+  if (/\/pipx\/venvs\//.test(p) && findOnPath("pipx")) {
+    return `pipx upgrade ${PACKAGE}`;
+  }
+  const quoted = /\s/.test(python) ? `"${python}"` : python;
+  return `${quoted} -m pip install --upgrade ${PACKAGE}`;
+}
+
+/**
+ * Run `command` in a new terminal that closes when it succeeds. Resolves true
+ * once the terminal has closed.
+ */
+function runInTerminal(name: string, command: string): Promise<boolean> {
+  const terminal = vscode.window.createTerminal({ name });
   terminal.show();
   // `exit` closes the terminal when the install is done, which ends the wait
   terminal.sendText(`${command} && exit`);
